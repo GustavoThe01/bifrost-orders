@@ -9,9 +9,9 @@
 - [x] ADR 0001 — Clean Architecture · ADR 0002 — Dispatcher próprio em vez de MediatR (licença e aprendizado)
 
 ### Dia 02 — Domínio
-- [ ] Agregado `Order` com `OrderItem`, value objects (`Money`, `Address`, `Email`)
-- [ ] Máquina de estados do pedido e domain events
-- [ ] Testes unitários (TDD)
+- [x] Agregado `Order` com `OrderItem`, value objects (`Money`, `Address`, `Email`)
+- [x] Máquina de estados do pedido e domain events
+- [x] Testes unitários (TDD)
 
 ### Dia 03 — EF Core + SQLite
 - [ ] `DbContext`, `IEntityTypeConfiguration<T>`, owned types

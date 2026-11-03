@@ -12,3 +12,7 @@ e [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Pipeline de CI no GitHub Actions.
 - `Bifrost.Api` com endpoint `/health` (health checks nativos).
 - ADR 0001 — Clean Architecture; ADR 0002 — dispatcher próprio em vez de MediatR.
+- Base do domínio: `AggregateRoot` com eventos de domínio e `DomainException`.
+- Value objects `Money`, `Email` e `Address` (snapshot do endereço de entrega).
+- Agregado `Order` com `OrderItem`, máquina de estados (Pending → Confirmed → Paid → Shipped → Delivered / Cancelled) e eventos para cada transição.
+- 32 testes unitários do domínio.
