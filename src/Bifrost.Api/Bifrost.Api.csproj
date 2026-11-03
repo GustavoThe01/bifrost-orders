@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="..\Bifrost.Application\Bifrost.Application.csproj" />
+    <ProjectReference Include="..\Bifrost.Infrastructure\Bifrost.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

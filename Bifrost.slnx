@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Bifrost.Domain/Bifrost.Domain.csproj" />
+    <Project Path="src/Bifrost.Application/Bifrost.Application.csproj" />
+    <Project Path="src/Bifrost.Infrastructure/Bifrost.Infrastructure.csproj" />
+    <Project Path="src/Bifrost.Api/Bifrost.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Bifrost.Domain.Tests/Bifrost.Domain.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path=".editorconfig" />
+    <File Path="global.json" />
+  </Folder>
+</Solution>

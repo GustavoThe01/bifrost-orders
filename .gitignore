@@ -1,0 +1,28 @@
+# Build .NET
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+publish/
+*.user
+*.suo
+TestResults/
+coverage*/
+
+# Banco local
+*.db
+*.sqlite
+
+# Segredos locais
+.env
+appsettings.Development.json
+appsettings.Local.json
+
+# IDEs
+.vs/
+.idea/
+.vscode/
+
+# SO
+Thumbs.db
+.DS_Store
