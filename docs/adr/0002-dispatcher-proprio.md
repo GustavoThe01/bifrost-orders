@@ -4,7 +4,7 @@
 - **Data:** 2026-11-03
 
 ## Contexto
-Para aplicar CQRS precisamos despachar commands e queries para seus handlers e
+Para aplicar CQRS, preciso despachar commands e queries para seus handlers e
 executar comportamentos transversais (validação, logging, transação) em pipeline.
 O MediatR é a escolha tradicional, mas passou a ter licença comercial a partir da versão 13.
 
@@ -20,4 +20,4 @@ e `IQueryHandler<TQuery, TResult>`, registro via DI e **decorators** para os com
 ## Consequências
 - ✅ Nenhuma dependência de licença; o fluxo fica explícito e fácil de explicar em entrevista.
 - ✅ Demonstra domínio de DI, generics e do padrão Decorator.
-- ⚠️ Mais código nosso para manter e testar.
+- ⚠️ Mais código meu para manter e testar.

@@ -4,8 +4,8 @@
 - **Data:** 2026-11-03
 
 ## Contexto
-O Bifrost terá regras de pedido não triviais (estados, estoque, pagamento), integrações
-externas e processamento em segundo plano. Precisamos que essas regras sejam testáveis
+A Bifrost terá regras de pedido não triviais (estados, estoque, pagamento), integrações
+externas e processamento em segundo plano. Quero que essas regras sejam testáveis
 sem banco nem HTTP e que detalhes técnicos possam mudar sem reescrever o núcleo.
 
 ## Decisão

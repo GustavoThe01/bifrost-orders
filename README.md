@@ -28,9 +28,9 @@ eventos confiáveis com Outbox, integrações resilientes e observabilidade com 
   <tr>
     <td width="62%">
 
-**Bifrost** é o quinto e maior projeto do meu portfólio público de Desenvolvedor Pleno, idealizado e mantido por **Gustavo Osterno Thé**.
+Eu sou o **Gustavo Osterno Thé**, e a **Bifrost** é o maior dos cinco projetos do meu portfólio público de Desenvolvedor Pleno. Idealizei, desenvolvo e mantenho este repositório.
 
-Ele reúne tudo o que os projetos anteriores construíram: o modelo de dados do [Mercurium](https://github.com/GustavoThe01/mercurium-sql), a modelagem de domínio do [Plutus](https://github.com/GustavoThe01/plutus-ledger) e os padrões de produção da [Moirai](https://github.com/GustavoThe01/moirai-taskflow), agora numa API .NET completa, com os problemas reais de um e-commerce: estoque disputado, pagamentos que falham e eventos que não podem se perder.
+Nela eu junto o que pratico nos outros projetos: o modelo de dados do [Mercurium](https://github.com/GustavoThe01/mercurium-sql), a modelagem de domínio do [Plutus](https://github.com/GustavoThe01/plutus-ledger) e os padrões de produção da [Moirai](https://github.com/GustavoThe01/moirai-taskflow), agora numa API .NET completa, com os problemas reais de um e-commerce: estoque disputado, pagamentos que falham e eventos que não podem se perder.
 
     </td>
     <td width="38%">
@@ -75,9 +75,11 @@ Ele reúne tudo o que os projetos anteriores construíram: o modelo de dados do 
 
 | 🌐 API | 🏛️ Arquitetura | 🛡️ Produção | 🗓️ Processo |
 |:---:|:---:|:---:|:---:|
-| **~18** endpoints planejados | **4** camadas (Clean Architecture) | JWT + políticas | **20** dias / **4** semanas |
+| **12** endpoints planejados | **4** camadas (Clean Architecture) | JWT + políticas | **20** dias / **4** semanas |
 | ProblemDetails + Result pattern | CQRS com dispatcher **próprio** | Outbox · retry · circuit breaker | **2** ADRs registrados |
 | versionamento `v1` / `v2` | EF Core (escrita) + Dapper (leitura) | OpenTelemetry · Serilog · health checks | **4** releases (`v0.1` → `v1.0`) |
+
+<sub>Metas para o fim do roadmap. O estado atual está nos badges, na seção <a href="#-testes">Testes</a> e em <a href="#-o-que-ainda-falta">O que ainda falta</a>.</sub>
 
 </div>
 
@@ -87,7 +89,7 @@ Ele reúne tudo o que os projetos anteriores construíram: o modelo de dados do 
 
 > *Na mitologia nórdica, Bifrost é a ponte arco-íris que liga Midgard, o mundo dos homens, a Asgard, o reino dos deuses. Heimdall a vigia dia e noite.*
 
-Um pedido também atravessa mundos: sai do **carrinho do cliente**, passa pelo **estoque**, pelo **gateway de pagamento** e pela **transportadora**, até chegar à **entrega**. A Bifrost é essa ponte, e como Heimdall, ela vigia cada travessia: nenhum pedido avança sem estoque reservado e pagamento confirmado, e nenhum evento se perde no caminho.
+Escolhi o nome porque um pedido também atravessa mundos: sai do **carrinho do cliente**, passa pelo **estoque**, pelo **gateway de pagamento** e pela **transportadora**, até chegar à **entrega**. A Bifrost é essa ponte e, como Heimdall, vigia cada travessia: nenhum pedido avança sem estoque reservado e pagamento confirmado, e nenhum evento se perde no caminho.
 
 ---
 
@@ -126,7 +128,7 @@ Exemplo de erro de negócio (**ProblemDetails**, mapeado a partir do Result patt
 
 ```json
 {
-  "type": "https://bifrost.dev/errors/insufficient-stock",
+  "type": "/problems/insufficient-stock",
   "title": "Estoque insuficiente",
   "status": 409,
   "detail": "O produto SKU-0042 tem 1 unidade disponível e o pedido pede 3.",
@@ -138,7 +140,7 @@ Exemplo de erro de negócio (**ProblemDetails**, mapeado a partir do Result patt
 
 ## 🏛️ Clean Architecture
 
-As dependências apontam sempre para o centro. O domínio não conhece EF Core, HTTP nem o gateway de pagamento. Decisão no [ADR 0001](docs/adr/0001-clean-architecture.md).
+As dependências apontam sempre para o centro. O domínio não conhece EF Core, HTTP nem o gateway de pagamento. Registrei essa decisão no [ADR 0001](docs/adr/0001-clean-architecture.md).
 
 ```mermaid
 flowchart TB
@@ -178,7 +180,7 @@ flowchart TB
     HTTP --> PAY
 ```
 
-> ✅ A regra "**Domain não depende de ninguém**" já é verificada por teste ([`LayerDependencyTests`](tests/Bifrost.Domain.Tests/LayerDependencyTests.cs)). No Dia 19 ela ganha o reforço do NetArchTest.
+> ✅ A regra "**Domain não depende de ninguém**" já está protegida por um teste que escrevi no Dia 01 ([`LayerDependencyTests`](tests/Bifrost.Domain.Tests/LayerDependencyTests.cs)). No Dia 19 vou reforçá-la com o NetArchTest.
 
 ---
 
@@ -191,7 +193,7 @@ flowchart TB
 | **Tecnologia** | EF Core + change tracking + transação | Dapper com SQL otimizado |
 | **Pipeline** | Validação (FluentValidation) + logging + transação | Logging |
 
-O despacho é feito por um **dispatcher próprio** com decorators, em vez do MediatR (que passou a ter licença comercial). Veja o [ADR 0002](docs/adr/0002-dispatcher-proprio.md).
+Optei por escrever um **dispatcher próprio** com decorators em vez de usar o MediatR (que passou a ter licença comercial). Expliquei o motivo no [ADR 0002](docs/adr/0002-dispatcher-proprio.md).
 
 ```mermaid
 sequenceDiagram
@@ -235,13 +237,15 @@ stateDiagram-v2
     Cancelled --> [*] : estoque devolvido
 ```
 
+> 🔗 Parto do ciclo de pedido que modelei no [Mercurium](https://github.com/GustavoThe01/mercurium-sql) e acrescento aqui o estado **Confirmed**, em que o estoque fica reservado antes do pagamento.
+
 ---
 
 ## 📣 Eventos confiáveis com Outbox
 
 **O problema:** salvar o pedido e publicar o evento "pedido criado" são duas operações. Se o banco grava e a publicação falha, o resto do sistema nunca fica sabendo.
 
-**A solução (Outbox pattern):** o evento é gravado numa tabela `outbox_messages` **na mesma transação** do pedido. Um `BackgroundService` lê essa tabela e publica, marcando como processado.
+**A solução que vou aplicar (Outbox pattern):** gravar o evento numa tabela `outbox_messages` **na mesma transação** do pedido. Um `BackgroundService` lê essa tabela, publica os eventos e os marca como processados.
 
 ```mermaid
 flowchart LR
@@ -273,10 +277,10 @@ flowchart LR
 
 ## 🧭 Metodologias e decisões
 
-- **Domínio primeiro**, testado antes de qualquer endpoint existir.
-- **Roadmap diário público** com uma release por semana. Veja o [ROADMAP.md](ROADMAP.md).
+- **Domínio primeiro**: testo as regras antes de qualquer endpoint existir.
+- **Roadmap diário público** com uma release por semana, registrado no [ROADMAP.md](ROADMAP.md).
 - **Conventional Commits**, versionamento semântico e **ADRs**.
-- **Warnings são erros**, versões de pacotes centralizadas.
+- **Warnings são erros** e as versões de pacotes ficam centralizadas.
 
 | ADR | Decisão | Status |
 |---|---|---|
@@ -376,7 +380,7 @@ bifrost-orders/
 
 ## 🧩 O que ainda falta
 
-Checklist vivo do que ainda precisa ser incrementado neste repositório.
+Mantenho aqui um checklist vivo do que ainda vou incrementar neste repositório.
 
 **Projeto**
 - [ ] Agregado `Order`, value objects e máquina de estados (Dia 02)
@@ -403,14 +407,14 @@ Checklist vivo do que ainda precisa ser incrementado neste repositório.
 
 | Projeto | Stack | Relação |
 |---|---|---|
-| ☿ [Mercurium](https://github.com/GustavoThe01/mercurium-sql) | SQLite | **Modelo de dados de e-commerce reaproveitado aqui** |
+| ☿ [Mercurium](https://github.com/GustavoThe01/mercurium-sql) | SQLite | **Modelo de dados de e-commerce de onde parto aqui** |
 | ⚒ [Nidavellir](https://github.com/GustavoThe01/nidavellir-inventory) | Java 21 | Fundamentos de POO e estoque |
-| ⚖ [Plutus](https://github.com/GustavoThe01/plutus-ledger) | C# + Dapper | **Base em .NET**: DDD e transações explícitas |
+| ⚖ [Plutus](https://github.com/GustavoThe01/plutus-ledger) | C# + Dapper | **O par deste projeto em .NET**: DDD e transações explícitas, sem ORM |
 | ♾ [Moirai](https://github.com/GustavoThe01/moirai-taskflow) | Spring Boot | A mesma maturidade de produção, em Java |
 | ✦ **Bifrost** | ASP.NET Core | *você está aqui* |
 
 <div align="center">
 
-<sub>Ponte construída por <a href="https://github.com/GustavoThe01">Gustavo Osterno Thé</a></sub>
+<sub>Ponte construída por mim · <a href="https://github.com/GustavoThe01">Gustavo Osterno Thé</a></sub>
 
 </div>
