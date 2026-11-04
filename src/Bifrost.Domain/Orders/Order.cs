@@ -25,6 +25,14 @@ public sealed class Order : AggregateRoot<OrderId>
 {
     private readonly List<OrderItem> _items = [];
 
+    // Exigido pelo EF Core para materializar a entidade.
+    private Order()
+        : base(default)
+    {
+        ShippingAddress = null!;
+        Currency = null!;
+    }
+
     private Order(OrderId id, CustomerId customerId, Address shippingAddress, string currency)
         : base(id)
     {

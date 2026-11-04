@@ -15,8 +15,8 @@ eventos confiáveis com Outbox, integrações resilientes e observabilidade com 
 ![EF Core](https://img.shields.io/badge/EF_Core-10-6C3FC5?style=flat-square)
 ![CQRS](https://img.shields.io/badge/CQRS-dispatcher_próprio-0ea5e9?style=flat-square)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-planejado-425CC7?style=flat-square&logo=opentelemetry&logoColor=white)
-![Roadmap](https://img.shields.io/badge/roadmap-dia_02_de_20-1e3a8a?style=flat-square)
-![Testes](https://img.shields.io/badge/testes-33_passando-15803d?style=flat-square)
+![Roadmap](https://img.shields.io/badge/roadmap-dia_03_de_20-1e3a8a?style=flat-square)
+![Testes](https://img.shields.io/badge/testes-48_passando-15803d?style=flat-square)
 
 </div>
 
@@ -294,7 +294,7 @@ flowchart LR
 
 | Semana | Dias | Tema | Release | Progresso |
 |---|---|---|:---:|---|
-| 1 | 01–05 | Solution, domínio, EF Core, CQRS, API | `v0.1.0` | 🟦🟦⬜⬜⬜ |
+| 1 | 01–05 | Solution, domínio, EF Core, CQRS, API | `v0.1.0` | 🟦🟦🟦⬜⬜ |
 | 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | ⬜⬜⬜⬜⬜ |
 | 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | ⬜⬜⬜⬜⬜ |
 | 4 | 16–20 | Cache, versionamento, OpenTelemetry, qualidade e entrega | `v1.0.0` | ⬜⬜⬜⬜⬜ |
@@ -329,6 +329,18 @@ curl http://localhost:5080/health
 
 Resposta esperada: `Healthy`
 
+Em desenvolvimento, a API aplica as migrations ao subir e cria o catálogo inicial com 5 produtos, no arquivo `src/Bifrost.Api/bifrost.db`.
+
+Para criar uma nova migration:
+
+```bash
+dotnet tool restore
+```
+
+```bash
+dotnet ef migrations add NomeDaMigration --project src/Bifrost.Infrastructure --startup-project src/Bifrost.Api --output-dir Persistence/Migrations
+```
+
 > 🐳 A partir do Dia 15: `docker compose up`.
 > 📘 A partir do Dia 05: documentação interativa da API (OpenAPI + Scalar).
 
@@ -344,9 +356,9 @@ dotnet test
 
 | Projeto de teste | Tipo | Situação |
 |---|---|---|
-| `Bifrost.Domain.Tests` | Unitários do domínio + regra de camadas | ✅ 33 testes (Order, value objects, camadas) |
+| `Bifrost.Domain.Tests` | Unitários do domínio + regra de camadas | ✅ 39 testes (Order, Product, value objects, camadas) |
 | `Bifrost.Application.Tests` | Handlers com NSubstitute | ⏳ Dia 08 |
-| `Bifrost.IntegrationTests` | `WebApplicationFactory` + SQLite em memória | ⏳ Dia 08 |
+| `Bifrost.IntegrationTests` | EF Core + SQLite em memória, com a migration real | ✅ 9 testes de persistência · ⏳ `WebApplicationFactory` no Dia 08 |
 | `Bifrost.ArchitectureTests` | NetArchTest | ⏳ Dia 19 |
 | Carga | k6 no endpoint de criação de pedido | ⏳ Dia 19 |
 
@@ -361,16 +373,18 @@ bifrost-orders/
 │   ├── adr/                          # ✅ decisões de arquitetura
 │   └── assets/                       # ✅ banner e imagens
 ├── src/
-│   ├── Bifrost.Domain/               # ✅ Order, OrderItem, Money, Email, Address, eventos
+│   ├── Bifrost.Domain/               # ✅ Order, Product, value objects, eventos
 │   ├── Bifrost.Application/          # ✅ projeto · ⏳ Dia 04 — CQRS
-│   ├── Bifrost.Infrastructure/       # ✅ projeto · ⏳ Dia 03 — EF Core
+│   ├── Bifrost.Infrastructure/       # ✅ EF Core, configurações, migration, seed
 │   └── Bifrost.Api/                  # ✅ /health · ⏳ Dia 05 — controllers
 ├── tests/
-│   └── Bifrost.Domain.Tests/         # ✅ testes do domínio e de arquitetura
+│   ├── Bifrost.Domain.Tests/         # ✅ testes do domínio e de arquitetura
+│   └── Bifrost.IntegrationTests/     # ✅ testes de persistência
 ├── Bifrost.slnx
 ├── Directory.Build.props             # ✅ Nullable, warnings como erro
 ├── Directory.Packages.props          # ✅ versões centralizadas
 ├── global.json                       # ✅ SDK + Microsoft.Testing.Platform
+├── dotnet-tools.json                 # ✅ versão do dotnet-ef
 ├── .editorconfig
 ├── CHANGELOG.md
 └── ROADMAP.md
@@ -384,7 +398,7 @@ Mantenho aqui um checklist vivo do que ainda vou incrementar neste repositório.
 
 **Projeto**
 - [x] Agregado `Order`, value objects e máquina de estados (Dia 02)
-- [ ] EF Core + SQLite, configurações e primeira migration (Dia 03)
+- [x] EF Core + SQLite, configurações e primeira migration (Dia 03)
 - [ ] Dispatcher CQRS e pipeline de validação (Dia 04)
 - [ ] Controllers, ProblemDetails e OpenAPI (Dia 05) → `v0.1.0`
 - [ ] Leitura com Dapper, Result pattern, testes, concorrência e Serilog (Dias 06–10) → `v0.2.0`
