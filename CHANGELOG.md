@@ -16,3 +16,8 @@ e [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Value objects `Money`, `Email` e `Address` (snapshot do endereço de entrega).
 - Agregado `Order` com `OrderItem`, máquina de estados (Pending → Confirmed → Paid → Shipped → Delivered / Cancelled) e eventos para cada transição.
 - 32 testes unitários do domínio.
+- Agregado `Product` no catálogo, com SKU único.
+- Persistência com EF Core e SQLite: `BifrostDbContext`, `IEntityTypeConfiguration`, owned type para `Address` e complex type para `Money`.
+- Dinheiro gravado em centavos (`INTEGER`) e status do pedido gravado como texto.
+- Migration `InitialCreate` e seed do catálogo, aplicados ao subir a API em desenvolvimento.
+- Projeto `Bifrost.IntegrationTests` e 15 testes novos: 9 de persistência e 6 de `Product`.

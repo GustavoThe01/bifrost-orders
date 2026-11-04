@@ -14,8 +14,8 @@
 - [x] Testes unitários (TDD)
 
 ### Dia 03 — EF Core + SQLite
-- [ ] `DbContext`, `IEntityTypeConfiguration<T>`, owned types
-- [ ] Primeira migration e seed de produtos
+- [x] `DbContext`, `IEntityTypeConfiguration<T>`, owned types
+- [x] Primeira migration e seed de produtos
 
 ### Dia 04 — CQRS
 - [ ] `ICommand`/`IQuery`, handlers e dispatcher

@@ -11,6 +11,9 @@ public sealed class OrderItem
 {
     public const int MaxQuantityPerItem = 99;
 
+    // Exigido pelo EF Core para materializar a entidade.
+    private OrderItem() => ProductName = null!;
+
     internal OrderItem(ProductId productId, string productName, Money unitPrice, int quantity)
     {
         if (string.IsNullOrWhiteSpace(productName))
