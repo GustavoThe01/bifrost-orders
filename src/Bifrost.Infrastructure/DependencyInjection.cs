@@ -1,3 +1,4 @@
+using Bifrost.Application.Abstractions;
 using Bifrost.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +17,11 @@ public static class DependencyInjection
                 CatalogSeed.Seed(context);
                 return Task.CompletedTask;
             }));
+
+        services.AddScoped<IOrderRepository, OrderRepository>();
+        services.AddScoped<IProductRepository, ProductRepository>();
+        services.AddScoped<IOrderQueries, OrderQueries>();
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         return services;
     }

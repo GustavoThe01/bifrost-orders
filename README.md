@@ -15,8 +15,8 @@ eventos confiáveis com Outbox, integrações resilientes e observabilidade com 
 ![EF Core](https://img.shields.io/badge/EF_Core-10-6C3FC5?style=flat-square)
 ![CQRS](https://img.shields.io/badge/CQRS-dispatcher_próprio-0ea5e9?style=flat-square)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-planejado-425CC7?style=flat-square&logo=opentelemetry&logoColor=white)
-![Roadmap](https://img.shields.io/badge/roadmap-dia_03_de_20-1e3a8a?style=flat-square)
-![Testes](https://img.shields.io/badge/testes-48_passando-15803d?style=flat-square)
+![Roadmap](https://img.shields.io/badge/roadmap-dia_04_de_20-1e3a8a?style=flat-square)
+![Testes](https://img.shields.io/badge/testes-63_passando-15803d?style=flat-square)
 
 </div>
 
@@ -294,7 +294,7 @@ flowchart LR
 
 | Semana | Dias | Tema | Release | Progresso |
 |---|---|---|:---:|---|
-| 1 | 01–05 | Solution, domínio, EF Core, CQRS, API | `v0.1.0` | 🟦🟦🟦⬜⬜ |
+| 1 | 01–05 | Solution, domínio, EF Core, CQRS, API | `v0.1.0` | 🟦🟦🟦🟦⬜ |
 | 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | ⬜⬜⬜⬜⬜ |
 | 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | ⬜⬜⬜⬜⬜ |
 | 4 | 16–20 | Cache, versionamento, OpenTelemetry, qualidade e entrega | `v1.0.0` | ⬜⬜⬜⬜⬜ |
@@ -357,8 +357,8 @@ dotnet test
 | Projeto de teste | Tipo | Situação |
 |---|---|---|
 | `Bifrost.Domain.Tests` | Unitários do domínio + regra de camadas | ✅ 39 testes (Order, Product, value objects, camadas) |
-| `Bifrost.Application.Tests` | Handlers com NSubstitute | ⏳ Dia 08 |
-| `Bifrost.IntegrationTests` | EF Core + SQLite em memória, com a migration real | ✅ 9 testes de persistência · ⏳ `WebApplicationFactory` no Dia 08 |
+| `Bifrost.Application.Tests` | Dispatcher, pipeline e handlers com NSubstitute | ✅ 13 testes |
+| `Bifrost.IntegrationTests` | EF Core + SQLite em memória, com a migration real | ✅ 11 testes de persistência e de fluxo · ⏳ `WebApplicationFactory` no Dia 08 |
 | `Bifrost.ArchitectureTests` | NetArchTest | ⏳ Dia 19 |
 | Carga | k6 no endpoint de criação de pedido | ⏳ Dia 19 |
 
@@ -374,11 +374,12 @@ bifrost-orders/
 │   └── assets/                       # ✅ banner e imagens
 ├── src/
 │   ├── Bifrost.Domain/               # ✅ Order, Product, value objects, eventos
-│   ├── Bifrost.Application/          # ✅ projeto · ⏳ Dia 04 — CQRS
+│   ├── Bifrost.Application/          # ✅ dispatcher, pipeline, commands e queries
 │   ├── Bifrost.Infrastructure/       # ✅ EF Core, configurações, migration, seed
 │   └── Bifrost.Api/                  # ✅ /health · ⏳ Dia 05 — controllers
 ├── tests/
 │   ├── Bifrost.Domain.Tests/         # ✅ testes do domínio e de arquitetura
+│   ├── Bifrost.Application.Tests/    # ✅ testes do pipeline e dos handlers
 │   └── Bifrost.IntegrationTests/     # ✅ testes de persistência
 ├── Bifrost.slnx
 ├── Directory.Build.props             # ✅ Nullable, warnings como erro
@@ -399,7 +400,7 @@ Mantenho aqui um checklist vivo do que ainda vou incrementar neste repositório.
 **Projeto**
 - [x] Agregado `Order`, value objects e máquina de estados (Dia 02)
 - [x] EF Core + SQLite, configurações e primeira migration (Dia 03)
-- [ ] Dispatcher CQRS e pipeline de validação (Dia 04)
+- [x] Dispatcher CQRS e pipeline de validação (Dia 04)
 - [ ] Controllers, ProblemDetails e OpenAPI (Dia 05) → `v0.1.0`
 - [ ] Leitura com Dapper, Result pattern, testes, concorrência e Serilog (Dias 06–10) → `v0.2.0`
 - [ ] JWT, políticas, Outbox, resiliência e Docker (Dias 11–15) → `v0.3.0`

@@ -18,8 +18,8 @@
 - [x] Primeira migration e seed de produtos
 
 ### Dia 04 — CQRS
-- [ ] `ICommand`/`IQuery`, handlers e dispatcher
-- [ ] Pipeline behaviors (decorators): validação com FluentValidation e logging
+- [x] `ICommand`/`IQuery`, handlers e dispatcher
+- [x] Pipeline behaviors (decorators): validação com FluentValidation e logging
 
 ### Dia 05 — API
 - [ ] Controllers de produtos e pedidos, DTOs
