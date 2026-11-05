@@ -21,3 +21,8 @@ e [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Dinheiro gravado em centavos (`INTEGER`) e status do pedido gravado como texto.
 - Migration `InitialCreate` e seed do catálogo, aplicados ao subir a API em desenvolvimento.
 - Projeto `Bifrost.IntegrationTests` e 15 testes novos: 9 de persistência e 6 de `Product`.
+- CQRS com dispatcher próprio: `ICommand`, `IQuery`, handlers e `IDispatcher`.
+- Pipeline com decorators: validação com FluentValidation nos commands e log com duração nos commands e queries.
+- Commands para criar, confirmar e cancelar pedidos; queries para detalhar pedido e listar produtos.
+- Repositórios e leituras com EF Core em `Bifrost.Infrastructure`.
+- Projeto `Bifrost.Application.Tests` e 15 testes novos: 13 de pipeline e 2 de fluxo completo.

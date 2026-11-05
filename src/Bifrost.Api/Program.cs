@@ -1,3 +1,4 @@
+using Bifrost.Application;
 using Bifrost.Infrastructure;
 using Bifrost.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -7,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("Bifrost")
     ?? throw new InvalidOperationException("A connection string 'Bifrost' não foi configurada.");
 
+builder.Services.AddApplication();
 builder.Services.AddInfrastructure(connectionString);
 builder.Services.AddHealthChecks();
 
