@@ -22,9 +22,9 @@
 - [x] Pipeline behaviors (decorators): validação com FluentValidation e logging
 
 ### Dia 05 — API
-- [ ] Controllers de produtos e pedidos, DTOs
-- [ ] `IExceptionHandler` global + ProblemDetails, OpenAPI (Scalar ou Swagger UI)
-- [ ] Tag `v0.1.0`
+- [x] Controllers de produtos e pedidos, DTOs
+- [x] `IExceptionHandler` global + ProblemDetails, OpenAPI (Scalar ou Swagger UI)
+- [x] Tag `v0.1.0`
 
 ## Semana 2 — Consultas e testes  → `v0.2.0`
 

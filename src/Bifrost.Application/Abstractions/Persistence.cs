@@ -14,6 +14,10 @@ public interface IOrderRepository
 public interface IProductRepository
 {
     Task<IReadOnlyList<Product>> GetByIdsAsync(IReadOnlyCollection<ProductId> ids, CancellationToken cancellationToken);
+
+    Task<bool> SkuExistsAsync(string sku, CancellationToken cancellationToken);
+
+    void Add(Product product);
 }
 
 /// <summary>Confirma de uma só vez tudo o que os repositórios alteraram.</summary>

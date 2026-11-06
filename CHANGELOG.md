@@ -3,7 +3,7 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/)
 e [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [Não lançado]
+## [0.1.0] - 2026-11-06
 
 ### Adicionado
 - Solution `Bifrost.slnx` com projetos Domain, Application, Infrastructure e testes.
@@ -26,3 +26,8 @@ e [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Commands para criar, confirmar e cancelar pedidos; queries para detalhar pedido e listar produtos.
 - Repositórios e leituras com EF Core em `Bifrost.Infrastructure`.
 - Projeto `Bifrost.Application.Tests` e 15 testes novos: 13 de pipeline e 2 de fluxo completo.
+- API REST: `ProductsController` e `OrdersController`, com criação, detalhe, confirmação e cancelamento de pedidos.
+- `CreateProductCommand`, com SKU único e resposta 409 quando repetido.
+- `GlobalExceptionHandler`: erros em ProblemDetails (RFC 9457), com `traceId` e validação campo a campo.
+- Documentação da API com OpenAPI e Scalar, disponível só em desenvolvimento.
+- 10 testes novos, com a API inteira rodando pelo `WebApplicationFactory`.

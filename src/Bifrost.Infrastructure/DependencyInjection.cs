@@ -7,10 +7,16 @@ namespace Bifrost.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, string connectionString)
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, string connectionString) =>
+        services.AddInfrastructure(_ => connectionString);
+
+    /// <summary>Lê a connection string só quando o contexto é criado, o que permite aos testes da API trocá-la.</summary>
+    public static IServiceCollection AddInfrastructure(
+        this IServiceCollection services,
+        Func<IServiceProvider, string> connectionString)
     {
-        services.AddDbContext<BifrostDbContext>(options => options
-            .UseSqlite(connectionString)
+        services.AddDbContext<BifrostDbContext>((provider, options) => options
+            .UseSqlite(connectionString(provider))
             .UseSeeding((context, _) => CatalogSeed.Seed(context))
             .UseAsyncSeeding((context, _, _) =>
             {
