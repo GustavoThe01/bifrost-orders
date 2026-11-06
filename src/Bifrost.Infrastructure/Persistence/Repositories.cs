@@ -20,6 +20,11 @@ internal sealed class ProductRepository(BifrostDbContext context) : IProductRepo
         IReadOnlyCollection<ProductId> ids,
         CancellationToken cancellationToken) =>
         await context.Products.Where(p => ids.Contains(p.Id)).ToListAsync(cancellationToken);
+
+    public Task<bool> SkuExistsAsync(string sku, CancellationToken cancellationToken) =>
+        context.Products.AnyAsync(p => p.Sku == sku, cancellationToken);
+
+    public void Add(Product product) => context.Products.Add(product);
 }
 
 internal sealed class UnitOfWork(BifrostDbContext context) : IUnitOfWork

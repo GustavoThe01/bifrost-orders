@@ -15,8 +15,8 @@ eventos confiáveis com Outbox, integrações resilientes e observabilidade com 
 ![EF Core](https://img.shields.io/badge/EF_Core-10-6C3FC5?style=flat-square)
 ![CQRS](https://img.shields.io/badge/CQRS-dispatcher_próprio-0ea5e9?style=flat-square)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-planejado-425CC7?style=flat-square&logo=opentelemetry&logoColor=white)
-![Roadmap](https://img.shields.io/badge/roadmap-dia_04_de_20-1e3a8a?style=flat-square)
-![Testes](https://img.shields.io/badge/testes-63_passando-15803d?style=flat-square)
+![Roadmap](https://img.shields.io/badge/roadmap-dia_05_de_20-1e3a8a?style=flat-square)
+![Testes](https://img.shields.io/badge/testes-73_passando-15803d?style=flat-square)
 
 </div>
 
@@ -114,14 +114,14 @@ Escolhi o nome porque um pedido também atravessa mundos: sai do **carrinho do c
 | `GET` | `/health` | Saúde da aplicação | ✅ 01 |
 | `GET` | `/health/ready` · `/health/live` | Prontidão e vitalidade (Docker/Kubernetes) | 15 |
 | `POST` | `/api/v1/auth/token` | Emite token JWT | 11 |
-| `GET` | `/api/v1/products` | Catálogo paginado (com cache) | 05 · 16 |
-| `POST` | `/api/v1/products` | Cadastra produto (`Admin`) | 05 |
-| `POST` | `/api/v1/orders` | Cria pedido | 05 |
+| `GET` | `/api/v1/products` | Catálogo (paginação no 06 e cache no 16) | ✅ 05 |
+| `POST` | `/api/v1/products` | Cadastra produto (perfil `Admin` a partir do 11) | ✅ 05 |
+| `POST` | `/api/v1/orders` | Cria pedido | ✅ 05 |
 | `GET` | `/api/v1/orders` | Lista pedidos do cliente (Dapper) | 06 |
-| `GET` | `/api/v1/orders/{id}` | Detalhe do pedido | 06 |
-| `POST` | `/api/v1/orders/{id}/confirm` | Confirma e reserva estoque | 09 |
+| `GET` | `/api/v1/orders/{id}` | Detalhe do pedido | ✅ 05 |
+| `POST` | `/api/v1/orders/{id}/confirm` | Confirma o pedido (reserva de estoque no 09) | ✅ 05 |
 | `POST` | `/api/v1/orders/{id}/pay` | Paga via gateway externo | 14 |
-| `POST` | `/api/v1/orders/{id}/cancel` | Cancela (devolve estoque) | 07 |
+| `POST` | `/api/v1/orders/{id}/cancel` | Cancela o pedido (devolução de estoque no 09) | ✅ 05 |
 | `GET` | `/api/v2/orders/{id}` | Nova versão do detalhe do pedido | 17 |
 
 Exemplo de erro de negócio (**ProblemDetails**, mapeado a partir do Result pattern):
@@ -294,7 +294,7 @@ flowchart LR
 
 | Semana | Dias | Tema | Release | Progresso |
 |---|---|---|:---:|---|
-| 1 | 01–05 | Solution, domínio, EF Core, CQRS, API | `v0.1.0` | 🟦🟦🟦🟦⬜ |
+| 1 | 01–05 | Solution, domínio, EF Core, CQRS, API | `v0.1.0` | 🟦🟦🟦🟦🟦 |
 | 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | ⬜⬜⬜⬜⬜ |
 | 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | ⬜⬜⬜⬜⬜ |
 | 4 | 16–20 | Cache, versionamento, OpenTelemetry, qualidade e entrega | `v1.0.0` | ⬜⬜⬜⬜⬜ |
@@ -342,7 +342,8 @@ dotnet ef migrations add NomeDaMigration --project src/Bifrost.Infrastructure --
 ```
 
 > 🐳 A partir do Dia 15: `docker compose up`.
-> 📘 A partir do Dia 05: documentação interativa da API (OpenAPI + Scalar).
+> 📘 Com a API no ar em desenvolvimento, a documentação interativa fica em `http://localhost:5080/scalar/v1`.
+> Até o Dia 11, o cliente do pedido vem no corpo da requisição. Depois, vem do token JWT.
 
 ---
 
@@ -358,7 +359,7 @@ dotnet test
 |---|---|---|
 | `Bifrost.Domain.Tests` | Unitários do domínio + regra de camadas | ✅ 39 testes (Order, Product, value objects, camadas) |
 | `Bifrost.Application.Tests` | Dispatcher, pipeline e handlers com NSubstitute | ✅ 13 testes |
-| `Bifrost.IntegrationTests` | EF Core + SQLite em memória, com a migration real | ✅ 11 testes de persistência e de fluxo · ⏳ `WebApplicationFactory` no Dia 08 |
+| `Bifrost.IntegrationTests` | EF Core + SQLite em memória, com a migration real | ✅ 21 testes de persistência, fluxo e API com `WebApplicationFactory` · ⏳ mais cenários no Dia 08 |
 | `Bifrost.ArchitectureTests` | NetArchTest | ⏳ Dia 19 |
 | Carga | k6 no endpoint de criação de pedido | ⏳ Dia 19 |
 
@@ -376,7 +377,7 @@ bifrost-orders/
 │   ├── Bifrost.Domain/               # ✅ Order, Product, value objects, eventos
 │   ├── Bifrost.Application/          # ✅ dispatcher, pipeline, commands e queries
 │   ├── Bifrost.Infrastructure/       # ✅ EF Core, configurações, migration, seed
-│   └── Bifrost.Api/                  # ✅ /health · ⏳ Dia 05 — controllers
+│   └── Bifrost.Api/                  # ✅ controllers, ProblemDetails, OpenAPI
 ├── tests/
 │   ├── Bifrost.Domain.Tests/         # ✅ testes do domínio e de arquitetura
 │   ├── Bifrost.Application.Tests/    # ✅ testes do pipeline e dos handlers
@@ -401,7 +402,7 @@ Mantenho aqui um checklist vivo do que ainda vou incrementar neste repositório.
 - [x] Agregado `Order`, value objects e máquina de estados (Dia 02)
 - [x] EF Core + SQLite, configurações e primeira migration (Dia 03)
 - [x] Dispatcher CQRS e pipeline de validação (Dia 04)
-- [ ] Controllers, ProblemDetails e OpenAPI (Dia 05) → `v0.1.0`
+- [x] Controllers, ProblemDetails e OpenAPI (Dia 05) → `v0.1.0`
 - [ ] Leitura com Dapper, Result pattern, testes, concorrência e Serilog (Dias 06–10) → `v0.2.0`
 - [ ] JWT, políticas, Outbox, resiliência e Docker (Dias 11–15) → `v0.3.0`
 - [ ] Cache, versionamento, OpenTelemetry, NetArchTest, k6 e entrega (Dias 16–20) → `v1.0.0`

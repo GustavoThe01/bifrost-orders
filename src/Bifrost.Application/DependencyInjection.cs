@@ -1,3 +1,4 @@
+using Bifrost.Application.Catalog;
 using Bifrost.Application.Messaging;
 using Bifrost.Application.Orders;
 using Bifrost.Domain.Orders;
@@ -18,6 +19,7 @@ public static class DependencyInjection
         services.AddValidatorsFromAssemblyContaining<CreateOrderValidator>(ServiceLifetime.Scoped, includeInternalTypes: true);
         services.AddScoped<IDispatcher, Dispatcher>();
 
+        services.AddCommand<CreateProductCommand, Guid, CreateProductHandler>();
         services.AddCommand<CreateOrderCommand, Guid, CreateOrderHandler>();
         services.AddCommand<ConfirmOrderCommand, OrderStatus, ConfirmOrderHandler>();
         services.AddCommand<CancelOrderCommand, OrderStatus, CancelOrderHandler>();
