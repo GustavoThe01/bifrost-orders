@@ -15,8 +15,8 @@ eventos confiáveis com Outbox, integrações resilientes e observabilidade com 
 ![EF Core](https://img.shields.io/badge/EF_Core-10-6C3FC5?style=flat-square)
 ![CQRS](https://img.shields.io/badge/CQRS-dispatcher_próprio-0ea5e9?style=flat-square)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-planejado-425CC7?style=flat-square&logo=opentelemetry&logoColor=white)
-![Roadmap](https://img.shields.io/badge/roadmap-dia_05_de_20-1e3a8a?style=flat-square)
-![Testes](https://img.shields.io/badge/testes-73_passando-15803d?style=flat-square)
+![Roadmap](https://img.shields.io/badge/roadmap-dia_06_de_20-1e3a8a?style=flat-square)
+![Testes](https://img.shields.io/badge/testes-84_passando-15803d?style=flat-square)
 
 </div>
 
@@ -76,7 +76,7 @@ Nela eu junto o que pratico nos outros projetos: o modelo de dados do [Mercurium
 | 🌐 API | 🏛️ Arquitetura | 🛡️ Produção | 🗓️ Processo |
 |:---:|:---:|:---:|:---:|
 | **12** endpoints planejados | **4** camadas (Clean Architecture) | JWT + políticas | **20** dias / **4** semanas |
-| ProblemDetails + Result pattern | CQRS com dispatcher **próprio** | Outbox · retry · circuit breaker | **2** ADRs registrados |
+| ProblemDetails + Result pattern | CQRS com dispatcher **próprio** | Outbox · retry · circuit breaker | **3** ADRs registrados |
 | versionamento `v1` / `v2` | EF Core (escrita) + Dapper (leitura) | OpenTelemetry · Serilog · health checks | **4** releases (`v0.1` → `v1.0`) |
 
 <sub>Metas para o fim do roadmap. O estado atual está nos badges, na seção <a href="#-testes">Testes</a> e em <a href="#-o-que-ainda-falta">O que ainda falta</a>.</sub>
@@ -117,7 +117,7 @@ Escolhi o nome porque um pedido também atravessa mundos: sai do **carrinho do c
 | `GET` | `/api/v1/products` | Catálogo (paginação no 06 e cache no 16) | ✅ 05 |
 | `POST` | `/api/v1/products` | Cadastra produto (perfil `Admin` a partir do 11) | ✅ 05 |
 | `POST` | `/api/v1/orders` | Cria pedido | ✅ 05 |
-| `GET` | `/api/v1/orders` | Lista pedidos do cliente (Dapper) | 06 |
+| `GET` | `/api/v1/orders` | Lista pedidos com filtro por cliente e status, paginada (Dapper) | ✅ 06 |
 | `GET` | `/api/v1/orders/{id}` | Detalhe do pedido | ✅ 05 |
 | `POST` | `/api/v1/orders/{id}/confirm` | Confirma o pedido (reserva de estoque no 09) | ✅ 05 |
 | `POST` | `/api/v1/orders/{id}/pay` | Paga via gateway externo | 14 |
@@ -286,7 +286,7 @@ flowchart LR
 |---|---|---|
 | [0001](docs/adr/0001-clean-architecture.md) | Clean Architecture em 4 projetos | ✅ Aceita |
 | [0002](docs/adr/0002-dispatcher-proprio.md) | Dispatcher próprio de commands/queries em vez de MediatR | ✅ Aceita |
-| 0003 | Leituras críticas com Dapper (CQRS de verdade) | ⏳ Dia 06 |
+| [0003](docs/adr/0003-leitura-com-dapper.md) | Leituras críticas com Dapper, escrita com EF Core | ✅ Aceita |
 
 ---
 
@@ -295,7 +295,7 @@ flowchart LR
 | Semana | Dias | Tema | Release | Progresso |
 |---|---|---|:---:|---|
 | 1 | 01–05 | Solution, domínio, EF Core, CQRS, API | `v0.1.0` | 🟦🟦🟦🟦🟦 |
-| 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | ⬜⬜⬜⬜⬜ |
+| 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | 🟦⬜⬜⬜⬜ |
 | 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | ⬜⬜⬜⬜⬜ |
 | 4 | 16–20 | Cache, versionamento, OpenTelemetry, qualidade e entrega | `v1.0.0` | ⬜⬜⬜⬜⬜ |
 
@@ -358,8 +358,8 @@ dotnet test
 | Projeto de teste | Tipo | Situação |
 |---|---|---|
 | `Bifrost.Domain.Tests` | Unitários do domínio + regra de camadas | ✅ 39 testes (Order, Product, value objects, camadas) |
-| `Bifrost.Application.Tests` | Dispatcher, pipeline e handlers com NSubstitute | ✅ 13 testes |
-| `Bifrost.IntegrationTests` | EF Core + SQLite em memória, com a migration real | ✅ 21 testes de persistência, fluxo e API com `WebApplicationFactory` · ⏳ mais cenários no Dia 08 |
+| `Bifrost.Application.Tests` | Dispatcher, pipeline e handlers com NSubstitute | ✅ 20 testes |
+| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 25 testes de persistência, fluxo, leitura com Dapper e API com `WebApplicationFactory` · ⏳ mais cenários no Dia 08 |
 | `Bifrost.ArchitectureTests` | NetArchTest | ⏳ Dia 19 |
 | Carga | k6 no endpoint de criação de pedido | ⏳ Dia 19 |
 
@@ -376,7 +376,7 @@ bifrost-orders/
 ├── src/
 │   ├── Bifrost.Domain/               # ✅ Order, Product, value objects, eventos
 │   ├── Bifrost.Application/          # ✅ dispatcher, pipeline, commands e queries
-│   ├── Bifrost.Infrastructure/       # ✅ EF Core, configurações, migration, seed
+│   ├── Bifrost.Infrastructure/       # ✅ EF Core (escrita), Dapper (leitura), migration, seed
 │   └── Bifrost.Api/                  # ✅ controllers, ProblemDetails, OpenAPI
 ├── tests/
 │   ├── Bifrost.Domain.Tests/         # ✅ testes do domínio e de arquitetura

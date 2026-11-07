@@ -29,8 +29,8 @@
 ## Semana 2 — Consultas e testes  → `v0.2.0`
 
 ### Dia 06 — Lado de leitura
-- [ ] Queries com `AsNoTracking`, projeções e paginação
-- [ ] Leituras críticas com **Dapper** (CQRS de verdade) — registrar em ADR 0003
+- [x] Queries com `AsNoTracking`, projeções e paginação
+- [x] Leituras críticas com **Dapper** (CQRS de verdade) — registrar em ADR 0003
 
 ### Dia 07 — Result pattern
 - [ ] `Result<T>` / `Error` e mapeamento para HTTP (400, 404, 409, 422)

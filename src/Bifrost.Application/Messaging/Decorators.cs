@@ -21,6 +21,23 @@ internal sealed class ValidationCommandDecorator<TCommand, TResult>(
     }
 }
 
+/// <summary>Valida a query antes do handler, do mesmo jeito que os commands.</summary>
+internal sealed class ValidationQueryDecorator<TQuery, TResult>(
+    IQueryHandler<TQuery, TResult> inner,
+    IEnumerable<IValidator<TQuery>> validators) : IQueryHandler<TQuery, TResult>
+    where TQuery : IQuery<TResult>
+{
+    public async Task<TResult> HandleAsync(TQuery query, CancellationToken cancellationToken)
+    {
+        foreach (var validator in validators)
+        {
+            await validator.ValidateAndThrowAsync(query, cancellationToken);
+        }
+
+        return await inner.HandleAsync(query, cancellationToken);
+    }
+}
+
 /// <summary>Registra o nome do command, a duração e a falha, sem gravar o conteúdo, que pode ter dados pessoais.</summary>
 internal sealed class LoggingCommandDecorator<TCommand, TResult>(
     ICommandHandler<TCommand, TResult> inner,

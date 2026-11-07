@@ -138,6 +138,27 @@ public sealed class OrdersApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ListOrders_ReturnsAPage()
+    {
+        var id = await CreateOrderAsync();
+
+        var page = await _client.GetFromJsonAsync<JsonElement>("/api/v1/orders?pageSize=5", _token);
+
+        Assert.Equal(1, page.GetProperty("totalItems").GetInt32());
+        Assert.Equal(5, page.GetProperty("pageSize").GetInt32());
+        var order = Assert.Single(page.GetProperty("items").EnumerateArray().ToList());
+        Assert.Equal(id, order.GetProperty("id").GetString());
+        Assert.Equal(79.80m, order.GetProperty("total").GetDecimal());
+    }
+
+    [Fact]
+    public async Task ListOrders_InvalidFilters_Return400()
+    {
+        await AssertProblemAsync(await _client.GetAsync("/api/v1/orders?status=Arquivado", _token), HttpStatusCode.BadRequest, "validation");
+        await AssertProblemAsync(await _client.GetAsync("/api/v1/orders?pageSize=1000", _token), HttpStatusCode.BadRequest, "validation");
+    }
+
+    [Fact]
     public async Task MalformedJson_Returns400()
     {
         using var content = new StringContent("{ isto não é json", System.Text.Encoding.UTF8, "application/json");
