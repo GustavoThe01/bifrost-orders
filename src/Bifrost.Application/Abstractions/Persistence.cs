@@ -26,10 +26,19 @@ public interface IUnitOfWork
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
 
-/// <summary>Lado de leitura: devolve DTOs, sem passar pelos agregados. No Dia 06 as leituras críticas vão para o Dapper.</summary>
+/// <summary>Filtros da listagem de pedidos. Campo nulo significa "sem filtro".</summary>
+public sealed record OrderListFilter(Guid? CustomerId, OrderStatus? Status);
+
+/// <summary>Lado de leitura: devolve DTOs, sem passar pelos agregados nem pelo change tracking.</summary>
 public interface IOrderQueries
 {
     Task<OrderDto?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken);
+
+    Task<PagedResult<OrderSummaryDto>> ListOrdersAsync(
+        OrderListFilter filter,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ProductDto>> ListProductsAsync(CancellationToken cancellationToken);
 }

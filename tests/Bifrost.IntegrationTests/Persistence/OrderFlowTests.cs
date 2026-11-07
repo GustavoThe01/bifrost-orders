@@ -76,4 +76,60 @@ public sealed class OrderFlowTests : IAsyncLifetime
         var cancelled = await InNewScope(d => d.QueryAsync(new GetOrderByIdQuery(id), _token));
         Assert.Equal("Cancelled", cancelled.Status);
     }
+
+    [Fact]
+    public async Task ListOrders_WithDapper_FiltersSumsAndPaginates()
+    {
+        var products = await InNewScope(d => d.QueryAsync(new ListProductsQuery(), _token));
+        var mug = products.Single(p => p.Sku == "CAN-001");
+        var lamp = products.Single(p => p.Sku == "LUM-001");
+        var address = new ShippingAddressInput("Av. Beira Mar", "100", "Fortaleza", "CE", "60165121");
+        var ana = Guid.NewGuid();
+        var bruno = Guid.NewGuid();
+
+        var first = await InNewScope(d => d.SendAsync(
+            new CreateOrderCommand(ana, address, "BRL", [new OrderItemInput(mug.Id, 2), new OrderItemInput(lamp.Id, 1)]),
+            _token));
+        var second = await InNewScope(d => d.SendAsync(
+            new CreateOrderCommand(ana, address, "BRL", [new OrderItemInput(mug.Id, 1)]), _token));
+        await InNewScope(d => d.SendAsync(
+            new CreateOrderCommand(bruno, address, "BRL", [new OrderItemInput(lamp.Id, 3)]), _token));
+        await InNewScope(d => d.SendAsync(new ConfirmOrderCommand(first), _token));
+
+        var anasFirstPage = await InNewScope(d => d.QueryAsync(new ListOrdersQuery(ana, PageSize: 1), _token));
+        var anasSecondPage = await InNewScope(d => d.QueryAsync(new ListOrdersQuery(ana, Page: 2, PageSize: 1), _token));
+        var confirmed = await InNewScope(d => d.QueryAsync(new ListOrdersQuery(Status: "Confirmed"), _token));
+        var everyone = await InNewScope(d => d.QueryAsync(new ListOrdersQuery(), _token));
+
+        // UUID v7: o pedido mais novo vem primeiro.
+        Assert.Equal(second, Assert.Single(anasFirstPage.Items).Id);
+        Assert.Equal(2, anasFirstPage.TotalItems);
+        Assert.True(anasFirstPage.HasNextPage);
+
+        var older = Assert.Single(anasSecondPage.Items);
+        Assert.Equal(first, older.Id);
+        Assert.Equal(209.30m, older.Total);
+        Assert.Equal(2, older.ItemCount);
+        Assert.Equal(ana, older.CustomerId);
+
+        Assert.Equal(first, Assert.Single(confirmed.Items).Id);
+        Assert.Equal(3, everyone.TotalItems);
+        Assert.Equal(388.50m, everyone.Items[0].Total);
+    }
+
+    [Fact]
+    public async Task GetOrderById_WithDapper_ReturnsItemsAndTotal()
+    {
+        var products = await InNewScope(d => d.QueryAsync(new ListProductsQuery(), _token));
+        var address = new ShippingAddressInput("Av. Beira Mar", "100", "Fortaleza", "CE", "60165121");
+        var items = products.Select(p => new OrderItemInput(p.Id, 1)).ToList();
+
+        var id = await InNewScope(d => d.SendAsync(new CreateOrderCommand(Guid.NewGuid(), address, "BRL", items), _token));
+        var order = await InNewScope(d => d.QueryAsync(new GetOrderByIdQuery(id), _token));
+
+        Assert.Equal(5, order.Items.Count);
+        Assert.Equal(products.Sum(p => p.Price), order.Total);
+        Assert.Equal(order.Items.OrderBy(i => i.ProductName, StringComparer.Ordinal).Select(i => i.ProductName),
+            order.Items.Select(i => i.ProductName));
+    }
 }

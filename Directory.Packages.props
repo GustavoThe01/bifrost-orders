@@ -6,6 +6,7 @@
   <ItemGroup Label="Persistência">
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14" />
+    <PackageVersion Include="Dapper" Version="2.1.89" />
   </ItemGroup>
   <ItemGroup Label="Aplicação">
     <PackageVersion Include="FluentValidation" Version="12.2.0" />

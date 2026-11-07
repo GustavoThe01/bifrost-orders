@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddCommand<CancelOrderCommand, OrderStatus, CancelOrderHandler>();
 
         services.AddQuery<GetOrderByIdQuery, OrderDto, GetOrderByIdHandler>();
+        services.AddQuery<ListOrdersQuery, PagedResult<OrderSummaryDto>, ListOrdersHandler>();
         services.AddQuery<ListProductsQuery, IReadOnlyList<ProductDto>, ListProductsHandler>();
 
         return services;
@@ -44,7 +45,7 @@ public static class DependencyInjection
                 provider.GetRequiredService<ILogger<LoggingCommandDecorator<TCommand, TResult>>>()));
     }
 
-    /// <summary>Pipeline de leitura: só log.</summary>
+    /// <summary>Pipeline de leitura: log, depois validação. Queries não abrem transação.</summary>
     private static void AddQuery<TQuery, TResult, THandler>(this IServiceCollection services)
         where TQuery : IQuery<TResult>
         where THandler : class, IQueryHandler<TQuery, TResult>
@@ -52,7 +53,9 @@ public static class DependencyInjection
         services.AddScoped<THandler>();
         services.AddScoped<IQueryHandler<TQuery, TResult>>(provider =>
             new LoggingQueryDecorator<TQuery, TResult>(
-                provider.GetRequiredService<THandler>(),
+                new ValidationQueryDecorator<TQuery, TResult>(
+                    provider.GetRequiredService<THandler>(),
+                    provider.GetServices<IValidator<TQuery>>()),
                 provider.GetRequiredService<ILogger<LoggingQueryDecorator<TQuery, TResult>>>()));
     }
 }

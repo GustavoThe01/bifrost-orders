@@ -42,6 +42,16 @@ public sealed class OrdersController(IDispatcher dispatcher) : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id }, new CreatedResponse(id));
     }
 
+    /// <summary>Lista pedidos do mais recente para o mais antigo, com filtro por cliente e status.</summary>
+    [HttpGet]
+    public Task<PagedResult<OrderSummaryDto>> List(
+        [FromQuery] Guid? customerId,
+        [FromQuery] string? status,
+        CancellationToken cancellationToken,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20) =>
+        dispatcher.QueryAsync(new ListOrdersQuery(customerId, status, page, pageSize), cancellationToken);
+
     /// <summary>Detalha um pedido.</summary>
     [HttpGet("{id:guid}")]
     public Task<OrderDto> GetById(Guid id, CancellationToken cancellationToken) =>

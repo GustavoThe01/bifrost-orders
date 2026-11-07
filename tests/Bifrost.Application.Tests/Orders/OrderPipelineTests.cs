@@ -176,6 +176,44 @@ public sealed class OrderPipelineTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task ListOrders_ConvertsTheStatus_AndPassesThePage()
+    {
+        var customer = Guid.NewGuid();
+        var page = new PagedResult<OrderSummaryDto>([], 2, 10, 0);
+        _queries.ListOrdersAsync(new OrderListFilter(customer, OrderStatus.Confirmed), 2, 10, Arg.Any<CancellationToken>())
+            .Returns(page);
+
+        var result = await _dispatcher.QueryAsync(new ListOrdersQuery(customer, "confirmed", 2, 10), _token);
+
+        Assert.Same(page, result);
+    }
+
+    [Theory]
+    [InlineData(0, 20, null)]
+    [InlineData(1, 0, null)]
+    [InlineData(1, 101, null)]
+    [InlineData(1, 20, "Arquivado")]
+    [InlineData(1, 20, "3")]
+    public async Task ListOrders_InvalidQuery_StopsAtValidation(int page, int pageSize, string? status)
+    {
+        await Assert.ThrowsAsync<ValidationException>(
+            () => _dispatcher.QueryAsync(new ListOrdersQuery(null, status, page, pageSize), _token));
+
+        await _queries.DidNotReceive().ListOrdersAsync(
+            Arg.Any<OrderListFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void PagedResult_CalculatesThePages()
+    {
+        var page = new PagedResult<int>([1, 2], 1, 2, 5);
+
+        Assert.Equal(3, page.TotalPages);
+        Assert.True(page.HasNextPage);
+        Assert.False(new PagedResult<int>([], 1, 20, 0).HasNextPage);
+    }
+
+    [Fact]
     public async Task UnregisteredCommand_FailsWithClearError()
     {
         await Assert.ThrowsAsync<InvalidOperationException>(() => _dispatcher.SendAsync(new NotRegistered(), _token));

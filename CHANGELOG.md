@@ -3,6 +3,16 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/)
 e [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [Não lançado]
+
+### Adicionado
+- Leituras de pedido com Dapper: detalhe com `QueryMultiple` (cabeçalho e itens numa ida ao banco) e listagem com o total somado em SQL.
+- `GET /api/v1/orders`: listagem paginada, do pedido mais recente para o mais antigo, com filtro por cliente e status.
+- Catálogo lido com EF Core sem rastreamento e com projeção direta para DTO.
+- Validação também no pipeline de queries (`ValidationQueryDecorator`).
+- ADR 0003 — leituras críticas com Dapper, escrita com EF Core.
+- 11 testes novos.
+
 ## [0.1.0] - 2026-11-06
 
 ### Adicionado
