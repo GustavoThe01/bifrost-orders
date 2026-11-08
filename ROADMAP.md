@@ -33,7 +33,7 @@
 - [x] Leituras críticas com **Dapper** (CQRS de verdade) — registrar em ADR 0003
 
 ### Dia 07 — Result pattern
-- [ ] `Result<T>` / `Error` e mapeamento para HTTP (400, 404, 409, 422)
+- [x] `Result<T>` / `Error` e mapeamento para HTTP (400, 404, 409, 422)
 
 ### Dia 08 — Testes
 - [ ] Unitários dos handlers (NSubstitute)

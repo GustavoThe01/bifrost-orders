@@ -15,8 +15,8 @@ eventos confiáveis com Outbox, integrações resilientes e observabilidade com 
 ![EF Core](https://img.shields.io/badge/EF_Core-10-6C3FC5?style=flat-square)
 ![CQRS](https://img.shields.io/badge/CQRS-dispatcher_próprio-0ea5e9?style=flat-square)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-planejado-425CC7?style=flat-square&logo=opentelemetry&logoColor=white)
-![Roadmap](https://img.shields.io/badge/roadmap-dia_06_de_20-1e3a8a?style=flat-square)
-![Testes](https://img.shields.io/badge/testes-84_passando-15803d?style=flat-square)
+![Roadmap](https://img.shields.io/badge/roadmap-dia_07_de_20-1e3a8a?style=flat-square)
+![Testes](https://img.shields.io/badge/testes-87_passando-15803d?style=flat-square)
 
 </div>
 
@@ -76,7 +76,7 @@ Nela eu junto o que pratico nos outros projetos: o modelo de dados do [Mercurium
 | 🌐 API | 🏛️ Arquitetura | 🛡️ Produção | 🗓️ Processo |
 |:---:|:---:|:---:|:---:|
 | **12** endpoints planejados | **4** camadas (Clean Architecture) | JWT + políticas | **20** dias / **4** semanas |
-| ProblemDetails + Result pattern | CQRS com dispatcher **próprio** | Outbox · retry · circuit breaker | **3** ADRs registrados |
+| ProblemDetails + Result pattern | CQRS com dispatcher **próprio** | Outbox · retry · circuit breaker | **4** ADRs registrados |
 | versionamento `v1` / `v2` | EF Core (escrita) + Dapper (leitura) | OpenTelemetry · Serilog · health checks | **4** releases (`v0.1` → `v1.0`) |
 
 <sub>Metas para o fim do roadmap. O estado atual está nos badges, na seção <a href="#-testes">Testes</a> e em <a href="#-o-que-ainda-falta">O que ainda falta</a>.</sub>
@@ -124,17 +124,32 @@ Escolhi o nome porque um pedido também atravessa mundos: sai do **carrinho do c
 | `POST` | `/api/v1/orders/{id}/cancel` | Cancela o pedido (devolução de estoque no 09) | ✅ 05 |
 | `GET` | `/api/v2/orders/{id}` | Nova versão do detalhe do pedido | 17 |
 
-Exemplo de erro de negócio (**ProblemDetails**, mapeado a partir do Result pattern):
+Os casos de uso devolvem `Result<T>`, e a API traduz a categoria do erro em status HTTP num lugar só
+([ADR 0004](docs/adr/0004-result-pattern.md)):
+
+| Categoria do erro | Status | Exemplo |
+|---|:---:|---|
+| `Validation` | 400 | quantidade fora de 1 a 99 |
+| `NotFound` | 404 | pedido ou produto inexistente |
+| `Conflict` | 409 | SKU já cadastrado |
+| `BusinessRule` | 422 | confirmar um pedido cancelado |
+
+Exemplo real, ao confirmar um pedido que já foi cancelado:
 
 ```json
 {
-  "type": "/problems/insufficient-stock",
-  "title": "Estoque insuficiente",
-  "status": 409,
-  "detail": "O produto SKU-0042 tem 1 unidade disponível e o pedido pede 3.",
+  "type": "/problems/business-rule",
+  "title": "Regra de negócio violada",
+  "status": 422,
+  "detail": "Não é possível confirmar um pedido em Cancelled. Esperado: Pending.",
+  "instance": "/api/v1/orders/0199f5c2-6a1e-7b3c-9d4e-2f8a1b6c7d90/confirm",
+  "code": "business_rule",
   "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 }
 ```
+
+O campo `code` é estável (`order.not_found`, `product.sku_taken`): quem consome a API trata o erro por ele,
+sem depender do texto da mensagem.
 
 ---
 
@@ -287,6 +302,7 @@ flowchart LR
 | [0001](docs/adr/0001-clean-architecture.md) | Clean Architecture em 4 projetos | ✅ Aceita |
 | [0002](docs/adr/0002-dispatcher-proprio.md) | Dispatcher próprio de commands/queries em vez de MediatR | ✅ Aceita |
 | [0003](docs/adr/0003-leitura-com-dapper.md) | Leituras críticas com Dapper, escrita com EF Core | ✅ Aceita |
+| [0004](docs/adr/0004-result-pattern.md) | Result pattern na fronteira da aplicação | ✅ Aceita |
 
 ---
 
@@ -295,7 +311,7 @@ flowchart LR
 | Semana | Dias | Tema | Release | Progresso |
 |---|---|---|:---:|---|
 | 1 | 01–05 | Solution, domínio, EF Core, CQRS, API | `v0.1.0` | 🟦🟦🟦🟦🟦 |
-| 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | 🟦⬜⬜⬜⬜ |
+| 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | 🟦🟦⬜⬜⬜ |
 | 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | ⬜⬜⬜⬜⬜ |
 | 4 | 16–20 | Cache, versionamento, OpenTelemetry, qualidade e entrega | `v1.0.0` | ⬜⬜⬜⬜⬜ |
 
@@ -358,8 +374,8 @@ dotnet test
 | Projeto de teste | Tipo | Situação |
 |---|---|---|
 | `Bifrost.Domain.Tests` | Unitários do domínio + regra de camadas | ✅ 39 testes (Order, Product, value objects, camadas) |
-| `Bifrost.Application.Tests` | Dispatcher, pipeline e handlers com NSubstitute | ✅ 20 testes |
-| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 25 testes de persistência, fluxo, leitura com Dapper e API com `WebApplicationFactory` · ⏳ mais cenários no Dia 08 |
+| `Bifrost.Application.Tests` | Dispatcher, pipeline, Result pattern e handlers com NSubstitute | ✅ 22 testes |
+| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 26 testes de persistência, fluxo, leitura com Dapper e API com `WebApplicationFactory` · ⏳ mais cenários no Dia 08 |
 | `Bifrost.ArchitectureTests` | NetArchTest | ⏳ Dia 19 |
 | Carga | k6 no endpoint de criação de pedido | ⏳ Dia 19 |
 
@@ -377,7 +393,7 @@ bifrost-orders/
 │   ├── Bifrost.Domain/               # ✅ Order, Product, value objects, eventos
 │   ├── Bifrost.Application/          # ✅ dispatcher, pipeline, commands e queries
 │   ├── Bifrost.Infrastructure/       # ✅ EF Core (escrita), Dapper (leitura), migration, seed
-│   └── Bifrost.Api/                  # ✅ controllers, ProblemDetails, OpenAPI
+│   └── Bifrost.Api/                  # ✅ controllers, Result → ProblemDetails, OpenAPI
 ├── tests/
 │   ├── Bifrost.Domain.Tests/         # ✅ testes do domínio e de arquitetura
 │   ├── Bifrost.Application.Tests/    # ✅ testes do pipeline e dos handlers

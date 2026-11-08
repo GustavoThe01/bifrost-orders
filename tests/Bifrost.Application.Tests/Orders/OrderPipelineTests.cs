@@ -1,6 +1,7 @@
 using Bifrost.Application.Abstractions;
 using Bifrost.Application.Messaging;
 using Bifrost.Application.Orders;
+using Bifrost.Application.Results;
 using Bifrost.Domain.Catalog;
 using Bifrost.Domain.Common;
 using Bifrost.Domain.Orders;
@@ -68,7 +69,7 @@ public sealed class OrderPipelineTests : IAsyncDisposable
         var product = CatalogProduct("CAN-001", 39.90m);
         var command = new CreateOrderCommand(Guid.NewGuid(), Fortaleza, "BRL", [new OrderItemInput(product.Id.Value, 2)]);
 
-        var id = await _dispatcher.SendAsync(command, _token);
+        var id = (await _dispatcher.SendAsync(command, _token)).Value;
 
         _orders.Received(1).Add(Arg.Is<Order>(o => o.Id.Value == id && o.Total == Money.Create(79.80m, "BRL")));
         await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
@@ -81,8 +82,10 @@ public sealed class OrderPipelineTests : IAsyncDisposable
             .Returns(Array.Empty<Product>());
         var command = new CreateOrderCommand(Guid.NewGuid(), Fortaleza, "BRL", [new OrderItemInput(Guid.NewGuid(), 1)]);
 
-        await Assert.ThrowsAsync<NotFoundException>(() => _dispatcher.SendAsync(command, _token));
+        var result = await _dispatcher.SendAsync(command, _token);
 
+        Assert.Equal(ErrorType.NotFound, result.Error?.Type);
+        Assert.Equal("product.not_found", result.Error?.Code);
         await _unitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
@@ -91,10 +94,11 @@ public sealed class OrderPipelineTests : IAsyncDisposable
     {
         var command = new CreateOrderCommand(Guid.Empty, Fortaleza, "BRL", []);
 
-        var exception = await Assert.ThrowsAsync<ValidationException>(() => _dispatcher.SendAsync(command, _token));
+        var result = await _dispatcher.SendAsync(command, _token);
 
-        Assert.Contains(exception.Errors, e => e.PropertyName == nameof(CreateOrderCommand.CustomerId));
-        Assert.Contains(exception.Errors, e => e.PropertyName == nameof(CreateOrderCommand.Items));
+        Assert.Equal(ErrorType.Validation, result.Error?.Type);
+        Assert.Contains(result.Error!.Fields, e => e.Field == nameof(CreateOrderCommand.CustomerId));
+        Assert.Contains(result.Error.Fields, e => e.Field == nameof(CreateOrderCommand.Items));
         await _products.DidNotReceive().GetByIdsAsync(Arg.Any<IReadOnlyCollection<ProductId>>(), Arg.Any<CancellationToken>());
     }
 
@@ -105,7 +109,7 @@ public sealed class OrderPipelineTests : IAsyncDisposable
     {
         var command = new CreateOrderCommand(Guid.NewGuid(), Fortaleza, "BRL", [new OrderItemInput(Guid.NewGuid(), quantity)]);
 
-        await Assert.ThrowsAsync<ValidationException>(() => _dispatcher.SendAsync(command, _token));
+        Assert.Equal(ErrorType.Validation, (await _dispatcher.SendAsync(command, _token)).Error?.Type);
     }
 
     [Fact]
@@ -113,17 +117,19 @@ public sealed class OrderPipelineTests : IAsyncDisposable
     {
         var order = PendingOrder();
 
-        var status = await _dispatcher.SendAsync(new ConfirmOrderCommand(order.Id.Value), _token);
+        var result = await _dispatcher.SendAsync(new ConfirmOrderCommand(order.Id.Value), _token);
 
-        Assert.Equal(OrderStatus.Confirmed, status);
+        Assert.Equal(OrderStatus.Confirmed, result.Value);
         await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ConfirmOrder_Unknown_IsNotFound()
     {
-        await Assert.ThrowsAsync<NotFoundException>(
-            () => _dispatcher.SendAsync(new ConfirmOrderCommand(Guid.NewGuid()), _token));
+        var result = await _dispatcher.SendAsync(new ConfirmOrderCommand(Guid.NewGuid()), _token);
+
+        Assert.Equal("order.not_found", result.Error?.Code);
+        await _unitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -131,8 +137,9 @@ public sealed class OrderPipelineTests : IAsyncDisposable
     {
         var order = PendingOrder();
 
-        await Assert.ThrowsAsync<ValidationException>(
-            () => _dispatcher.SendAsync(new CancelOrderCommand(order.Id.Value, " "), _token));
+        var result = await _dispatcher.SendAsync(new CancelOrderCommand(order.Id.Value, " "), _token);
+
+        Assert.Equal(ErrorType.Validation, result.Error?.Type);
 
         Assert.Equal(OrderStatus.Pending, order.Status);
     }
@@ -144,8 +151,11 @@ public sealed class OrderPipelineTests : IAsyncDisposable
         order.Confirm();
         order.MarkAsPaid();
 
-        await Assert.ThrowsAsync<DomainException>(
-            () => _dispatcher.SendAsync(new CancelOrderCommand(order.Id.Value, "Desistência"), _token));
+        // O domínio lança DomainException; o pipeline devolve uma falha, sem exceção para quem chamou.
+        var result = await _dispatcher.SendAsync(new CancelOrderCommand(order.Id.Value, "Desistência"), _token);
+
+        Assert.Equal(ErrorType.BusinessRule, result.Error?.Type);
+        Assert.Contains("Situação atual: Paid", result.Error!.Message, StringComparison.Ordinal);
 
         await _unitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
@@ -157,14 +167,16 @@ public sealed class OrderPipelineTests : IAsyncDisposable
         var dto = new OrderDto(id, Guid.NewGuid(), "Pending", "BRL", 10m, []);
         _queries.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(dto);
 
-        Assert.Same(dto, await _dispatcher.QueryAsync(new GetOrderByIdQuery(id), _token));
+        Assert.Same(dto, (await _dispatcher.QueryAsync(new GetOrderByIdQuery(id), _token)).Value);
     }
 
     [Fact]
     public async Task GetOrderById_Unknown_IsNotFound()
     {
-        await Assert.ThrowsAsync<NotFoundException>(
-            () => _dispatcher.QueryAsync(new GetOrderByIdQuery(Guid.NewGuid()), _token));
+        var result = await _dispatcher.QueryAsync(new GetOrderByIdQuery(Guid.NewGuid()), _token);
+
+        Assert.Equal(ErrorType.NotFound, result.Error?.Type);
+        Assert.Throws<InvalidOperationException>(() => result.Value);
     }
 
     [Fact]
@@ -172,7 +184,7 @@ public sealed class OrderPipelineTests : IAsyncDisposable
     {
         _queries.ListProductsAsync(Arg.Any<CancellationToken>()).Returns(new List<ProductDto>());
 
-        Assert.Empty(await _dispatcher.QueryAsync(new ListProductsQuery(), _token));
+        Assert.Empty((await _dispatcher.QueryAsync(new ListProductsQuery(), _token)).Value);
     }
 
     [Fact]
@@ -185,7 +197,7 @@ public sealed class OrderPipelineTests : IAsyncDisposable
 
         var result = await _dispatcher.QueryAsync(new ListOrdersQuery(customer, "confirmed", 2, 10), _token);
 
-        Assert.Same(page, result);
+        Assert.Same(page, result.Value);
     }
 
     [Theory]
@@ -196,11 +208,33 @@ public sealed class OrderPipelineTests : IAsyncDisposable
     [InlineData(1, 20, "3")]
     public async Task ListOrders_InvalidQuery_StopsAtValidation(int page, int pageSize, string? status)
     {
-        await Assert.ThrowsAsync<ValidationException>(
-            () => _dispatcher.QueryAsync(new ListOrdersQuery(null, status, page, pageSize), _token));
+        var result = await _dispatcher.QueryAsync(new ListOrdersQuery(null, status, page, pageSize), _token);
+
+        Assert.Equal(ErrorType.Validation, result.Error?.Type);
 
         await _queries.DidNotReceive().ListOrdersAsync(
             Arg.Any<OrderListFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UnexpectedException_IsNotTurnedIntoResult()
+    {
+        var order = PendingOrder();
+        _unitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(Task.FromException(new TimeoutException("banco fora do ar")));
+
+        await Assert.ThrowsAsync<TimeoutException>(() => _dispatcher.SendAsync(new ConfirmOrderCommand(order.Id.Value), _token));
+    }
+
+    [Fact]
+    public void Result_HoldsAValueOrAnError_NeverBoth()
+    {
+        Result<int> success = 42;
+        Result<int> failure = Error.Conflict("x.conflict", "Conflito.");
+
+        Assert.Equal("ok 42", success.Match(v => $"ok {v}", e => e.Code));
+        Assert.Equal("x.conflict", failure.Match(v => $"ok {v}", e => e.Code));
+        Assert.True(failure.IsFailure);
+        Assert.Null(success.Error);
     }
 
     [Fact]

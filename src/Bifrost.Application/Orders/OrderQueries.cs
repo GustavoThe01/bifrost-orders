@@ -1,5 +1,6 @@
 using Bifrost.Application.Abstractions;
 using Bifrost.Application.Messaging;
+using Bifrost.Application.Results;
 using Bifrost.Domain.Orders;
 using FluentValidation;
 
@@ -28,22 +29,23 @@ public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSi
     public bool HasNextPage => Page < TotalPages;
 }
 
-public sealed record GetOrderByIdQuery(Guid OrderId) : IQuery<OrderDto>;
+public sealed record GetOrderByIdQuery(Guid OrderId) : IQuery<Result<OrderDto>>;
 
 /// <summary>Lista pedidos, do mais recente para o mais antigo. Cliente e status são filtros opcionais.</summary>
 public sealed record ListOrdersQuery(Guid? CustomerId = null, string? Status = null, int Page = 1, int PageSize = 20)
-    : IQuery<PagedResult<OrderSummaryDto>>
+    : IQuery<Result<PagedResult<OrderSummaryDto>>>
 {
     public const int MaxPageSize = 100;
 }
 
-public sealed record ListProductsQuery : IQuery<IReadOnlyList<ProductDto>>;
+public sealed record ListProductsQuery : IQuery<Result<IReadOnlyList<ProductDto>>>;
 
-internal sealed class GetOrderByIdHandler(IOrderQueries queries) : IQueryHandler<GetOrderByIdQuery, OrderDto>
+internal sealed class GetOrderByIdHandler(IOrderQueries queries) : IQueryHandler<GetOrderByIdQuery, Result<OrderDto>>
 {
-    public async Task<OrderDto> HandleAsync(GetOrderByIdQuery query, CancellationToken cancellationToken) =>
-        await queries.GetByIdAsync(query.OrderId, cancellationToken)
-        ?? throw new NotFoundException($"Pedido {query.OrderId} não encontrado.");
+    public async Task<Result<OrderDto>> HandleAsync(GetOrderByIdQuery query, CancellationToken cancellationToken) =>
+        await queries.GetByIdAsync(query.OrderId, cancellationToken) is { } order
+            ? order
+            : OrderErrors.OrderNotFound(query.OrderId);
 }
 
 internal sealed class ListOrdersValidator : AbstractValidator<ListOrdersQuery>
@@ -61,17 +63,19 @@ internal sealed class ListOrdersValidator : AbstractValidator<ListOrdersQuery>
 }
 
 internal sealed class ListOrdersHandler(IOrderQueries queries)
-    : IQueryHandler<ListOrdersQuery, PagedResult<OrderSummaryDto>>
+    : IQueryHandler<ListOrdersQuery, Result<PagedResult<OrderSummaryDto>>>
 {
-    public Task<PagedResult<OrderSummaryDto>> HandleAsync(ListOrdersQuery query, CancellationToken cancellationToken)
+    public async Task<Result<PagedResult<OrderSummaryDto>>> HandleAsync(ListOrdersQuery query, CancellationToken cancellationToken)
     {
         OrderStatus? status = query.Status is null ? null : Enum.Parse<OrderStatus>(query.Status, ignoreCase: true);
-        return queries.ListOrdersAsync(new OrderListFilter(query.CustomerId, status), query.Page, query.PageSize, cancellationToken);
+        return await queries.ListOrdersAsync(
+            new OrderListFilter(query.CustomerId, status), query.Page, query.PageSize, cancellationToken);
     }
 }
 
-internal sealed class ListProductsHandler(IOrderQueries queries) : IQueryHandler<ListProductsQuery, IReadOnlyList<ProductDto>>
+internal sealed class ListProductsHandler(IOrderQueries queries)
+    : IQueryHandler<ListProductsQuery, Result<IReadOnlyList<ProductDto>>>
 {
-    public Task<IReadOnlyList<ProductDto>> HandleAsync(ListProductsQuery query, CancellationToken cancellationToken) =>
-        queries.ListProductsAsync(cancellationToken);
+    public async Task<Result<IReadOnlyList<ProductDto>>> HandleAsync(ListProductsQuery query, CancellationToken cancellationToken) =>
+        Result<IReadOnlyList<ProductDto>>.Success(await queries.ListProductsAsync(cancellationToken));
 }
