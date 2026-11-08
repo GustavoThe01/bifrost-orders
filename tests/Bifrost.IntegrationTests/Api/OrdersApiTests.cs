@@ -111,6 +111,17 @@ public sealed class OrdersApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Problems_CarryAStableCode_AndValidationListsTheFields()
+    {
+        var unknown = await _client.PostAsJsonAsync("/api/v1/orders", OrderBody(Guid.NewGuid().ToString()), _token);
+        var invalid = await _client.PostAsJsonAsync("/api/v1/orders", OrderBody(Guid.NewGuid().ToString(), quantity: 0), _token);
+
+        Assert.Equal("product.not_found", (await JsonAsync(unknown)).GetProperty("code").GetString());
+        var errors = (await JsonAsync(invalid)).GetProperty("errors").EnumerateArray().ToList();
+        Assert.Contains(errors, e => e.GetProperty("field").GetString() == "Items[0].Quantity");
+    }
+
+    [Fact]
     public async Task UnknownProduct_Returns404()
     {
         var response = await _client.PostAsJsonAsync("/api/v1/orders", OrderBody(Guid.NewGuid().ToString()), _token);

@@ -1,6 +1,7 @@
 using Bifrost.Application;
 using Bifrost.Application.Messaging;
 using Bifrost.Application.Orders;
+using Bifrost.Application.Results;
 using Bifrost.Infrastructure;
 using Bifrost.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
@@ -39,10 +40,13 @@ public sealed class OrderFlowTests : IAsyncLifetime
         await _keepAlive.DisposeAsync();
     }
 
-    private async Task<T> InNewScope<T>(Func<IDispatcher, Task<T>> action)
+    /// <summary>Roda num escopo novo e devolve o valor; uma falha inesperada derruba o teste com o código do erro.</summary>
+    private async Task<T> InNewScope<T>(Func<IDispatcher, Task<Result<T>>> action)
     {
         await using var scope = _provider.CreateAsyncScope();
-        return await action(scope.ServiceProvider.GetRequiredService<IDispatcher>());
+        var result = await action(scope.ServiceProvider.GetRequiredService<IDispatcher>());
+        Assert.True(result.IsSuccess, result.Error?.Code);
+        return result.Value;
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using Bifrost.Application.Abstractions;
 using Bifrost.Application.Messaging;
+using Bifrost.Application.Results;
 using Bifrost.Domain.Orders;
 using Bifrost.Domain.ValueObjects;
 using FluentValidation;
@@ -14,11 +15,11 @@ public sealed record CreateOrderCommand(
     Guid CustomerId,
     ShippingAddressInput ShippingAddress,
     string Currency,
-    IReadOnlyList<OrderItemInput> Items) : ICommand<Guid>;
+    IReadOnlyList<OrderItemInput> Items) : ICommand<Result<Guid>>;
 
-public sealed record ConfirmOrderCommand(Guid OrderId) : ICommand<OrderStatus>;
+public sealed record ConfirmOrderCommand(Guid OrderId) : ICommand<Result<OrderStatus>>;
 
-public sealed record CancelOrderCommand(Guid OrderId, string Reason) : ICommand<OrderStatus>;
+public sealed record CancelOrderCommand(Guid OrderId, string Reason) : ICommand<Result<OrderStatus>>;
 
 public sealed class CreateOrderValidator : AbstractValidator<CreateOrderCommand>
 {
@@ -50,9 +51,9 @@ public sealed class CancelOrderValidator : AbstractValidator<CancelOrderCommand>
 /// se viesse, o cliente poderia escolher quanto pagar.
 /// </summary>
 internal sealed class CreateOrderHandler(IProductRepository products, IOrderRepository orders, IUnitOfWork unitOfWork)
-    : ICommandHandler<CreateOrderCommand, Guid>
+    : ICommandHandler<CreateOrderCommand, Result<Guid>>
 {
-    public async Task<Guid> HandleAsync(CreateOrderCommand command, CancellationToken cancellationToken)
+    public async Task<Result<Guid>> HandleAsync(CreateOrderCommand command, CancellationToken cancellationToken)
     {
         var ids = command.Items.Select(i => new ProductId(i.ProductId)).Distinct().ToList();
         var catalog = (await products.GetByIdsAsync(ids, cancellationToken)).ToDictionary(p => p.Id);
@@ -67,7 +68,7 @@ internal sealed class CreateOrderHandler(IProductRepository products, IOrderRepo
         {
             if (!catalog.TryGetValue(new ProductId(item.ProductId), out var product))
             {
-                throw new NotFoundException($"Produto {item.ProductId} não encontrado.");
+                return OrderErrors.ProductNotFound(item.ProductId);
             }
 
             order.AddItem(product.Id, product.Name, product.Price, item.Quantity);
@@ -80,11 +81,16 @@ internal sealed class CreateOrderHandler(IProductRepository products, IOrderRepo
 }
 
 internal sealed class ConfirmOrderHandler(IOrderRepository orders, IUnitOfWork unitOfWork)
-    : ICommandHandler<ConfirmOrderCommand, OrderStatus>
+    : ICommandHandler<ConfirmOrderCommand, Result<OrderStatus>>
 {
-    public async Task<OrderStatus> HandleAsync(ConfirmOrderCommand command, CancellationToken cancellationToken)
+    public async Task<Result<OrderStatus>> HandleAsync(ConfirmOrderCommand command, CancellationToken cancellationToken)
     {
-        var order = await orders.LoadAsync(command.OrderId, cancellationToken);
+        var order = await orders.GetByIdAsync(new OrderId(command.OrderId), cancellationToken);
+        if (order is null)
+        {
+            return OrderErrors.OrderNotFound(command.OrderId);
+        }
+
         order.Confirm();
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return order.Status;
@@ -92,20 +98,26 @@ internal sealed class ConfirmOrderHandler(IOrderRepository orders, IUnitOfWork u
 }
 
 internal sealed class CancelOrderHandler(IOrderRepository orders, IUnitOfWork unitOfWork)
-    : ICommandHandler<CancelOrderCommand, OrderStatus>
+    : ICommandHandler<CancelOrderCommand, Result<OrderStatus>>
 {
-    public async Task<OrderStatus> HandleAsync(CancelOrderCommand command, CancellationToken cancellationToken)
+    public async Task<Result<OrderStatus>> HandleAsync(CancelOrderCommand command, CancellationToken cancellationToken)
     {
-        var order = await orders.LoadAsync(command.OrderId, cancellationToken);
+        var order = await orders.GetByIdAsync(new OrderId(command.OrderId), cancellationToken);
+        if (order is null)
+        {
+            return OrderErrors.OrderNotFound(command.OrderId);
+        }
+
         order.Cancel(command.Reason);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return order.Status;
     }
 }
 
-internal static class OrderRepositoryExtensions
+/// <summary>Falhas esperadas dos casos de uso de pedido, com códigos estáveis para quem consome a API.</summary>
+public static class OrderErrors
 {
-    public static async Task<Order> LoadAsync(this IOrderRepository orders, Guid id, CancellationToken cancellationToken) =>
-        await orders.GetByIdAsync(new OrderId(id), cancellationToken)
-        ?? throw new NotFoundException($"Pedido {id} não encontrado.");
+    public static Error OrderNotFound(Guid id) => Error.NotFound("order.not_found", $"Pedido {id} não encontrado.");
+
+    public static Error ProductNotFound(Guid id) => Error.NotFound("product.not_found", $"Produto {id} não encontrado.");
 }

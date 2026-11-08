@@ -1,5 +1,6 @@
 using Bifrost.Application.Abstractions;
 using Bifrost.Application.Messaging;
+using Bifrost.Application.Results;
 using Bifrost.Domain.Catalog;
 using Bifrost.Domain.ValueObjects;
 using FluentValidation;
@@ -11,7 +12,7 @@ public sealed record CreateProductCommand(
     string Name,
     decimal Price,
     string Currency,
-    int StockQuantity) : ICommand<Guid>;
+    int StockQuantity) : ICommand<Result<Guid>>;
 
 public sealed class CreateProductValidator : AbstractValidator<CreateProductCommand>
 {
@@ -26,9 +27,9 @@ public sealed class CreateProductValidator : AbstractValidator<CreateProductComm
 }
 
 internal sealed class CreateProductHandler(IProductRepository products, IUnitOfWork unitOfWork)
-    : ICommandHandler<CreateProductCommand, Guid>
+    : ICommandHandler<CreateProductCommand, Result<Guid>>
 {
-    public async Task<Guid> HandleAsync(CreateProductCommand command, CancellationToken cancellationToken)
+    public async Task<Result<Guid>> HandleAsync(CreateProductCommand command, CancellationToken cancellationToken)
     {
         var product = Product.Create(
             command.Sku,
@@ -38,7 +39,7 @@ internal sealed class CreateProductHandler(IProductRepository products, IUnitOfW
 
         if (await products.SkuExistsAsync(product.Sku, cancellationToken))
         {
-            throw new ConflictException($"Já existe um produto com o SKU {product.Sku}.");
+            return Error.Conflict("product.sku_taken", $"Já existe um produto com o SKU {product.Sku}.");
         }
 
         products.Add(product);

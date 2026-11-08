@@ -4,7 +4,8 @@ namespace Bifrost.Domain.Common;
 /// Violação de uma invariante do domínio (valor inválido ou operação proibida no estado atual).
 /// </summary>
 /// <remarks>
-/// No Dia 07, as falhas de negócio esperadas passam a voltar como <c>Result</c> e viram ProblemDetails na API.
+/// O domínio continua lançando exceção quando uma invariante seria quebrada. Na fronteira da aplicação,
+/// o pipeline converte essa exceção em <c>Result</c>, e a API nunca vê a exceção (ADR 0004).
 /// </remarks>
 public sealed class DomainException : Exception
 {

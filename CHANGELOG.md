@@ -12,6 +12,16 @@ e [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Validação também no pipeline de queries (`ValidationQueryDecorator`).
 - ADR 0003 — leituras críticas com Dapper, escrita com EF Core.
 - 11 testes novos.
+- Result pattern: commands e queries devolvem `Result<T>`, com `Error` de código estável e categoria (`Validation`, `NotFound`, `Conflict`, `BusinessRule`).
+- Mapeamento único de categoria para HTTP (400, 404, 409 e 422) em `ResultExtensions`, sempre em ProblemDetails e com o campo `code`.
+- `BusinessRuleCommandDecorator`, que converte a `DomainException` do domínio em `Result` na fronteira da aplicação.
+- Os decorators de validação devolvem falha sem lançar exceção, usando um membro estático abstrato (`TResult.Failure`).
+- O `GlobalExceptionHandler` passa a tratar só o inesperado (500).
+- ADR 0004 — Result pattern na fronteira da aplicação.
+- 3 testes novos.
+
+### Removido
+- `NotFoundException` e `ConflictException`: essas falhas agora voltam como `Result`.
 
 ## [0.1.0] - 2026-11-06
 
