@@ -15,8 +15,8 @@ eventos confiáveis com Outbox, integrações resilientes e observabilidade com 
 ![EF Core](https://img.shields.io/badge/EF_Core-10-6C3FC5?style=flat-square)
 ![CQRS](https://img.shields.io/badge/CQRS-dispatcher_próprio-0ea5e9?style=flat-square)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-planejado-425CC7?style=flat-square&logo=opentelemetry&logoColor=white)
-![Roadmap](https://img.shields.io/badge/roadmap-dia_07_de_20-1e3a8a?style=flat-square)
-![Testes](https://img.shields.io/badge/testes-87_passando-15803d?style=flat-square)
+![Roadmap](https://img.shields.io/badge/roadmap-dia_08_de_20-1e3a8a?style=flat-square)
+![Testes](https://img.shields.io/badge/testes-101_passando-15803d?style=flat-square)
 
 </div>
 
@@ -311,7 +311,7 @@ flowchart LR
 | Semana | Dias | Tema | Release | Progresso |
 |---|---|---|:---:|---|
 | 1 | 01–05 | Solution, domínio, EF Core, CQRS, API | `v0.1.0` | 🟦🟦🟦🟦🟦 |
-| 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | 🟦🟦⬜⬜⬜ |
+| 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | 🟦🟦🟦⬜⬜ |
 | 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | ⬜⬜⬜⬜⬜ |
 | 4 | 16–20 | Cache, versionamento, OpenTelemetry, qualidade e entrega | `v1.0.0` | ⬜⬜⬜⬜⬜ |
 
@@ -374,8 +374,8 @@ dotnet test
 | Projeto de teste | Tipo | Situação |
 |---|---|---|
 | `Bifrost.Domain.Tests` | Unitários do domínio + regra de camadas | ✅ 39 testes (Order, Product, value objects, camadas) |
-| `Bifrost.Application.Tests` | Dispatcher, pipeline, Result pattern e handlers com NSubstitute | ✅ 22 testes |
-| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 26 testes de persistência, fluxo, leitura com Dapper e API com `WebApplicationFactory` · ⏳ mais cenários no Dia 08 |
+| `Bifrost.Application.Tests` | Pipeline completo e cada handler isolado, com NSubstitute | ✅ 31 testes |
+| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 31 testes de persistência, fluxo, leitura com Dapper e API com `WebApplicationFactory`, inclusive o 500 sem detalhe interno |
 | `Bifrost.ArchitectureTests` | NetArchTest | ⏳ Dia 19 |
 | Carga | k6 no endpoint de criação de pedido | ⏳ Dia 19 |
 

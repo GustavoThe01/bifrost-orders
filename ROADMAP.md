@@ -36,8 +36,8 @@
 - [x] `Result<T>` / `Error` e mapeamento para HTTP (400, 404, 409, 422)
 
 ### Dia 08 — Testes
-- [ ] Unitários dos handlers (NSubstitute)
-- [ ] Integração com `WebApplicationFactory` + SQLite em memória
+- [x] Unitários dos handlers (NSubstitute)
+- [x] Integração com `WebApplicationFactory` + SQLite em memória
 
 ### Dia 09 — Concorrência
 - [ ] Token de concorrência no estoque; reservar estoque ao confirmar pedido
