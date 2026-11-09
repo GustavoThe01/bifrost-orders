@@ -3,7 +3,11 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Bifrost.Application.Abstractions;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
 
 namespace Bifrost.IntegrationTests.Api;
 
@@ -187,6 +191,75 @@ public sealed class OrdersApiTests : IAsyncLifetime
 
         Assert.True(document.GetProperty("paths").TryGetProperty("/api/v1/orders", out _));
         Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync("/scalar/v1", _token)).StatusCode);
+    }
+
+    [Fact]
+    public async Task CancelWithoutReason_Returns400_PointingAtTheField()
+    {
+        var id = await CreateOrderAsync();
+
+        var response = await _client.PostAsJsonAsync($"/api/v1/orders/{id}/cancel", new { reason = "" }, _token);
+
+        await AssertProblemAsync(response, HttpStatusCode.BadRequest, "validation");
+        var errors = (await JsonAsync(response)).GetProperty("errors").EnumerateArray();
+        Assert.Contains(errors, e => e.GetProperty("field").GetString() == "Reason");
+    }
+
+    [Fact]
+    public async Task ListOrders_FiltersByCustomerAndStatus()
+    {
+        var productId = await FirstProductIdAsync();
+        var ana = Guid.NewGuid();
+        object Body(Guid customer) => new
+        {
+            customerId = customer,
+            shippingAddress = new { street = "Rua A", number = "1", city = "Fortaleza", state = "CE", zipCode = "60165121" },
+            currency = "BRL",
+            items = new[] { new { productId, quantity = 1 } },
+        };
+        var first = (await JsonAsync(await _client.PostAsJsonAsync("/api/v1/orders", Body(ana), _token))).GetProperty("id").GetString();
+        await _client.PostAsJsonAsync("/api/v1/orders", Body(ana), _token);
+        await _client.PostAsJsonAsync("/api/v1/orders", Body(Guid.NewGuid()), _token);
+        await _client.PostAsync($"/api/v1/orders/{first}/confirm", null, _token);
+
+        var anas = await _client.GetFromJsonAsync<JsonElement>($"/api/v1/orders?customerId={ana}", _token);
+        var confirmed = await _client.GetFromJsonAsync<JsonElement>($"/api/v1/orders?customerId={ana}&status=confirmed", _token);
+
+        Assert.Equal(2, anas.GetProperty("totalItems").GetInt32());
+        Assert.Equal(first, Assert.Single(confirmed.GetProperty("items").EnumerateArray().ToList()).GetProperty("id").GetString());
+    }
+
+    [Fact]
+    public async Task RouteWithInvalidId_IsNotFound()
+    {
+        Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync("/api/v1/orders/nao-e-guid", _token)).StatusCode);
+    }
+
+    [Fact]
+    public async Task OpenApi_DocumentsTheErrorResponses()
+    {
+        var document = await _client.GetFromJsonAsync<JsonElement>("/openapi/v1.json", _token);
+        var confirm = document.GetProperty("paths").GetProperty("/api/v1/orders/{id}/confirm").GetProperty("post").GetProperty("responses");
+
+        Assert.True(confirm.TryGetProperty("404", out _));
+        Assert.True(confirm.TryGetProperty("422", out var unprocessable));
+        Assert.True(unprocessable.GetProperty("content").TryGetProperty("application/problem+json", out _));
+    }
+
+    [Fact]
+    public async Task UnexpectedFailure_Returns500_WithoutInternalDetails()
+    {
+        var broken = Substitute.For<IOrderQueries>();
+        broken.ListProductsAsync(Arg.Any<CancellationToken>())
+            .Returns<Task<IReadOnlyList<Bifrost.Application.Orders.ProductDto>>>(_ => throw new InvalidOperationException("senha=segredo no texto do erro"));
+        await using var factory = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services => services.AddScoped(_ => broken)));
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/products", _token);
+
+        await AssertProblemAsync(response, HttpStatusCode.InternalServerError, "internal-error");
+        Assert.DoesNotContain("segredo", await response.Content.ReadAsStringAsync(_token), StringComparison.Ordinal);
     }
 
     [Fact]

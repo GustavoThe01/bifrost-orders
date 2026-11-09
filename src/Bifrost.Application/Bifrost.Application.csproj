@@ -8,4 +8,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Bifrost.Domain\Bifrost.Domain.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Os handlers são internos; os testes unitários os instanciam direto, sem o pipeline. -->
+    <InternalsVisibleTo Include="Bifrost.Application.Tests" />
+  </ItemGroup>
 </Project>

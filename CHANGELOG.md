@@ -19,6 +19,9 @@ e [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - O `GlobalExceptionHandler` passa a tratar só o inesperado (500).
 - ADR 0004 — Result pattern na fronteira da aplicação.
 - 3 testes novos.
+- Testes unitários de cada handler isolado (sem dispatcher), incluindo a junção de itens repetidos com o preço do catálogo e o decorator que converte `DomainException`.
+- Cenários de API: filtro da listagem por cliente e status, cancelamento sem motivo, rota com id inválido, respostas de erro no OpenAPI e erro inesperado devolvendo 500 sem detalhe interno.
+- 14 testes novos.
 
 ### Removido
 - `NotFoundException` e `ConflictException`: essas falhas agora voltam como `Result`.
