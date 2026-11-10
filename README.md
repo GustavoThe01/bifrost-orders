@@ -15,8 +15,8 @@ eventos confiáveis com Outbox, integrações resilientes e observabilidade com 
 ![EF Core](https://img.shields.io/badge/EF_Core-10-6C3FC5?style=flat-square)
 ![CQRS](https://img.shields.io/badge/CQRS-dispatcher_próprio-0ea5e9?style=flat-square)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-planejado-425CC7?style=flat-square&logo=opentelemetry&logoColor=white)
-![Roadmap](https://img.shields.io/badge/roadmap-dia_08_de_20-1e3a8a?style=flat-square)
-![Testes](https://img.shields.io/badge/testes-101_passando-15803d?style=flat-square)
+![Roadmap](https://img.shields.io/badge/roadmap-dia_09_de_20-1e3a8a?style=flat-square)
+![Testes](https://img.shields.io/badge/testes-110_passando-15803d?style=flat-square)
 
 </div>
 
@@ -119,9 +119,9 @@ Escolhi o nome porque um pedido também atravessa mundos: sai do **carrinho do c
 | `POST` | `/api/v1/orders` | Cria pedido | ✅ 05 |
 | `GET` | `/api/v1/orders` | Lista pedidos com filtro por cliente e status, paginada (Dapper) | ✅ 06 |
 | `GET` | `/api/v1/orders/{id}` | Detalhe do pedido | ✅ 05 |
-| `POST` | `/api/v1/orders/{id}/confirm` | Confirma o pedido (reserva de estoque no 09) | ✅ 05 |
+| `POST` | `/api/v1/orders/{id}/confirm` | Confirma o pedido e reserva o estoque | ✅ 05 · reserva no 09 |
 | `POST` | `/api/v1/orders/{id}/pay` | Paga via gateway externo | 14 |
-| `POST` | `/api/v1/orders/{id}/cancel` | Cancela o pedido (devolução de estoque no 09) | ✅ 05 |
+| `POST` | `/api/v1/orders/{id}/cancel` | Cancela o pedido e devolve o estoque reservado | ✅ 05 · devolução no 09 |
 | `GET` | `/api/v2/orders/{id}` | Nova versão do detalhe do pedido | 17 |
 
 Os casos de uso devolvem `Result<T>`, e a API traduz a categoria do erro em status HTTP num lugar só
@@ -272,6 +272,25 @@ flowchart LR
 
 ---
 
+## 🏁 Dez pedidos, uma unidade
+
+Confirmar um pedido reserva o estoque de cada item na mesma transação; cancelar um pedido confirmado devolve.
+O produto tem um token de concorrência (`version`): todo `UPDATE` inclui `WHERE version = <versão lida>`.
+
+O teste mais importante do Dia 09 coloca **10 pedidos disputando a última unidade** de um produto, confirmados ao mesmo
+tempo, cada um na própria conexão, num SQLite em arquivo:
+
+- exatamente **um** pedido é confirmado;
+- os outros perdem de um de dois jeitos: ou leram o saldo já zerado e recebem **422** ("estoque insuficiente"),
+  ou leram junto com o vencedor e o token barra a gravação, com **409** ("os dados mudaram, tente de novo");
+- o estoque termina em **0**, nunca negativo.
+
+Rodei esse teste várias vezes seguidas, e o resultado foi o mesmo em todas. Um segundo teste, determinístico, prova o
+cenário do lost update: duas leituras do mesmo produto, a primeira grava, e a segunda é recusada em vez de sobrescrever
+o saldo.
+
+---
+
 ## 🧠 Competências demonstradas
 
 | Área | Conceitos |
@@ -311,7 +330,7 @@ flowchart LR
 | Semana | Dias | Tema | Release | Progresso |
 |---|---|---|:---:|---|
 | 1 | 01–05 | Solution, domínio, EF Core, CQRS, API | `v0.1.0` | 🟦🟦🟦🟦🟦 |
-| 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | 🟦🟦🟦⬜⬜ |
+| 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | 🟦🟦🟦🟦⬜ |
 | 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | ⬜⬜⬜⬜⬜ |
 | 4 | 16–20 | Cache, versionamento, OpenTelemetry, qualidade e entrega | `v1.0.0` | ⬜⬜⬜⬜⬜ |
 
@@ -373,9 +392,9 @@ dotnet test
 
 | Projeto de teste | Tipo | Situação |
 |---|---|---|
-| `Bifrost.Domain.Tests` | Unitários do domínio + regra de camadas | ✅ 39 testes (Order, Product, value objects, camadas) |
+| `Bifrost.Domain.Tests` | Unitários do domínio + regra de camadas | ✅ 44 testes (Order, Product, reserva de estoque, value objects, camadas) |
 | `Bifrost.Application.Tests` | Pipeline completo e cada handler isolado, com NSubstitute | ✅ 31 testes |
-| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 31 testes de persistência, fluxo, leitura com Dapper e API com `WebApplicationFactory`, inclusive o 500 sem detalhe interno |
+| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 35 testes de persistência, fluxo, leitura com Dapper, concorrência de estoque e API com `WebApplicationFactory` |
 | `Bifrost.ArchitectureTests` | NetArchTest | ⏳ Dia 19 |
 | Carga | k6 no endpoint de criação de pedido | ⏳ Dia 19 |
 

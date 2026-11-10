@@ -112,7 +112,7 @@ public sealed class HandlerTests
     [Fact]
     public async Task ConfirmOrder_UnknownOrder_IsNotFound()
     {
-        var result = await new ConfirmOrderHandler(_orders, _unitOfWork).HandleAsync(new ConfirmOrderCommand(Guid.NewGuid()), _token);
+        var result = await new ConfirmOrderHandler(_orders, _products, _unitOfWork).HandleAsync(new ConfirmOrderCommand(Guid.NewGuid()), _token);
 
         Assert.Equal("order.not_found", result.Error?.Code);
     }
@@ -122,7 +122,7 @@ public sealed class HandlerTests
     {
         var order = StoredOrder();
 
-        var result = await new CancelOrderHandler(_orders, _unitOfWork)
+        var result = await new CancelOrderHandler(_orders, _products, _unitOfWork)
             .HandleAsync(new CancelOrderCommand(order.Id.Value, "  Desistência  "), _token);
 
         Assert.Equal(OrderStatus.Cancelled, result.Value);

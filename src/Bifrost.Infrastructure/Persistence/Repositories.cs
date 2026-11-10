@@ -29,5 +29,16 @@ internal sealed class ProductRepository(BifrostDbContext context) : IProductRepo
 
 internal sealed class UnitOfWork(BifrostDbContext context) : IUnitOfWork
 {
-    public Task SaveChangesAsync(CancellationToken cancellationToken) => context.SaveChangesAsync(cancellationToken);
+    public async Task SaveChangesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            // O UPDATE com "WHERE version = <lida>" não achou a linha: alguém gravou antes.
+            throw new ConcurrencyConflictException("Os dados mudaram durante a operação.", exception);
+        }
+    }
 }

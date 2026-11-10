@@ -40,8 +40,8 @@
 - [x] Integração com `WebApplicationFactory` + SQLite em memória
 
 ### Dia 09 — Concorrência
-- [ ] Token de concorrência no estoque; reservar estoque ao confirmar pedido
-- [ ] Teste de pedidos simultâneos disputando o último item
+- [x] Token de concorrência no estoque; reservar estoque ao confirmar pedido
+- [x] Teste de pedidos simultâneos disputando o último item
 
 ### Dia 10 — Logging
 - [ ] Serilog estruturado, middleware de **correlation id**

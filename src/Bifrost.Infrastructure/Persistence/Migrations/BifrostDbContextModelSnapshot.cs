@@ -40,6 +40,11 @@ namespace Bifrost.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER")
                         .HasColumnName("stock_quantity");
 
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("version");
+
                     b.ComplexProperty(typeof(Dictionary<string, object>), "Price", "Bifrost.Domain.Catalog.Product.Price#Money", b1 =>
                         {
                             b1.IsRequired();

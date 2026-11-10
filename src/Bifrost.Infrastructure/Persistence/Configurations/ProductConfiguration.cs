@@ -24,6 +24,9 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.Name).HasColumnName("name").HasMaxLength(120).IsRequired();
         builder.Property(p => p.StockQuantity).HasColumnName("stock_quantity");
 
+        // Token de concorrência: todo UPDATE do produto inclui "WHERE version = <versão lida>".
+        builder.Property(p => p.Version).HasColumnName("version").IsConcurrencyToken();
+
         builder.ComplexProperty(p => p.Price).MapMoney("price_cents", "currency");
 
         builder.Ignore(p => p.DomainEvents);

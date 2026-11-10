@@ -60,6 +60,8 @@ public sealed class OrderPipelineTests : IAsyncDisposable
         var order = Order.Create(CustomerId.New(), Address.Create("Rua A", "1", "Fortaleza", "CE", "60165121"), "BRL");
         order.AddItem(product.Id, product.Name, product.Price, 1);
         _orders.GetByIdAsync(order.Id, Arg.Any<CancellationToken>()).Returns(order);
+        // Confirmar reserva estoque: o produto precisa existir no catálogo simulado.
+        _products.GetByIdsAsync(Arg.Any<IReadOnlyCollection<ProductId>>(), Arg.Any<CancellationToken>()).Returns([product]);
         return order;
     }
 
