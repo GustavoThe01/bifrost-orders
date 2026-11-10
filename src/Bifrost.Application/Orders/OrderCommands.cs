@@ -80,7 +80,12 @@ internal sealed class CreateOrderHandler(IProductRepository products, IOrderRepo
     }
 }
 
-internal sealed class ConfirmOrderHandler(IOrderRepository orders, IUnitOfWork unitOfWork)
+/// <summary>
+/// Confirma o pedido e reserva o estoque de cada item na mesma transação: ou o pedido fica confirmado com tudo
+/// reservado, ou nada muda. Se outro pedido reservou o mesmo produto ao mesmo tempo, o token de concorrência
+/// do produto faz a segunda gravação falhar, em vez de deixar o saldo negativo.
+/// </summary>
+internal sealed class ConfirmOrderHandler(IOrderRepository orders, IProductRepository products, IUnitOfWork unitOfWork)
     : ICommandHandler<ConfirmOrderCommand, Result<OrderStatus>>
 {
     public async Task<Result<OrderStatus>> HandleAsync(ConfirmOrderCommand command, CancellationToken cancellationToken)
@@ -92,12 +97,26 @@ internal sealed class ConfirmOrderHandler(IOrderRepository orders, IUnitOfWork u
         }
 
         order.Confirm();
+
+        var stock = (await products.GetByIdsAsync([.. order.Items.Select(i => i.ProductId)], cancellationToken))
+            .ToDictionary(p => p.Id);
+        foreach (var item in order.Items)
+        {
+            if (!stock.TryGetValue(item.ProductId, out var product))
+            {
+                return OrderErrors.ProductNotFound(item.ProductId.Value);
+            }
+
+            product.Reserve(item.Quantity);
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return order.Status;
     }
 }
 
-internal sealed class CancelOrderHandler(IOrderRepository orders, IUnitOfWork unitOfWork)
+/// <summary>Cancela o pedido. Se ele já estava confirmado, o estoque reservado volta para o saldo.</summary>
+internal sealed class CancelOrderHandler(IOrderRepository orders, IProductRepository products, IUnitOfWork unitOfWork)
     : ICommandHandler<CancelOrderCommand, Result<OrderStatus>>
 {
     public async Task<Result<OrderStatus>> HandleAsync(CancelOrderCommand command, CancellationToken cancellationToken)
@@ -108,7 +127,19 @@ internal sealed class CancelOrderHandler(IOrderRepository orders, IUnitOfWork un
             return OrderErrors.OrderNotFound(command.OrderId);
         }
 
+        var hadReservation = order.Status == OrderStatus.Confirmed;
         order.Cancel(command.Reason);
+
+        if (hadReservation)
+        {
+            var stock = (await products.GetByIdsAsync([.. order.Items.Select(i => i.ProductId)], cancellationToken))
+                .ToDictionary(p => p.Id);
+            foreach (var item in order.Items)
+            {
+                stock[item.ProductId].Release(item.Quantity);
+            }
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return order.Status;
     }

@@ -35,8 +35,14 @@ public sealed class Product : AggregateRoot<ProductId>
 
     public Money Price { get; private set; }
 
-    /// <summary>Saldo disponível. A reserva com concorrência otimista chega no Dia 09.</summary>
+    /// <summary>Saldo disponível para venda. Diminui quando um pedido é confirmado e volta se ele for cancelado.</summary>
     public int StockQuantity { get; private set; }
+
+    /// <summary>
+    /// Versão do produto, usada como token de concorrência otimista. Muda a cada alteração: se duas operações leram a
+    /// mesma versão, só a primeira grava; a segunda recebe um conflito em vez de sobrescrever o saldo.
+    /// </summary>
+    public int Version { get; private set; }
 
     public static Product Create(string sku, string name, Money price, int stockQuantity)
     {
@@ -54,7 +60,40 @@ public sealed class Product : AggregateRoot<ProductId>
         return new Product(ProductId.New(), normalizedSku, ValidateName(name), ValidatePrice(price), stockQuantity);
     }
 
-    public void ChangePrice(Money newPrice) => Price = ValidatePrice(newPrice);
+    public void ChangePrice(Money newPrice)
+    {
+        Price = ValidatePrice(newPrice);
+        Version++;
+    }
+
+    /// <summary>Separa unidades para um pedido confirmado. Sem saldo, nada muda.</summary>
+    public void Reserve(int quantity)
+    {
+        EnsurePositive(quantity);
+        if (quantity > StockQuantity)
+        {
+            throw new DomainException($"Estoque insuficiente para {Sku}: disponível {StockQuantity}, pedido {quantity}.");
+        }
+
+        StockQuantity -= quantity;
+        Version++;
+    }
+
+    /// <summary>Devolve ao saldo as unidades de um pedido cancelado.</summary>
+    public void Release(int quantity)
+    {
+        EnsurePositive(quantity);
+        StockQuantity += quantity;
+        Version++;
+    }
+
+    private static void EnsurePositive(int quantity)
+    {
+        if (quantity <= 0)
+        {
+            throw new DomainException($"A quantidade deve ser maior que zero: {quantity}.");
+        }
+    }
 
     private static string ValidateName(string name)
     {

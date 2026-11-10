@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Bifrost.Application.Abstractions;
 using Bifrost.Application.Results;
 using Bifrost.Domain.Common;
 using FluentValidation;
@@ -72,6 +73,12 @@ internal sealed class BusinessRuleCommandDecorator<TCommand, TResult>(ICommandHa
         catch (DomainException exception)
         {
             return TResult.Failure(Error.BusinessRule("business_rule", exception.Message));
+        }
+        catch (ConcurrencyConflictException)
+        {
+            return TResult.Failure(Error.Conflict(
+                "concurrency_conflict",
+                "Os dados mudaram enquanto a operação acontecia. Nada foi gravado; tente de novo."));
         }
     }
 }

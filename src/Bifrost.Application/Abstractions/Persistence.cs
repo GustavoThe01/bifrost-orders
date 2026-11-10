@@ -20,6 +20,27 @@ public interface IProductRepository
     void Add(Product product);
 }
 
+/// <summary>
+/// Outra operação alterou os mesmos dados entre a leitura e a gravação. Nada foi gravado.
+/// A infraestrutura traduz o erro do EF Core para esta exceção, e a aplicação não precisa conhecer o EF.
+/// </summary>
+public sealed class ConcurrencyConflictException : Exception
+{
+    public ConcurrencyConflictException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+
+    public ConcurrencyConflictException(string message)
+        : base(message)
+    {
+    }
+
+    public ConcurrencyConflictException()
+    {
+    }
+}
+
 /// <summary>Confirma de uma só vez tudo o que os repositórios alteraram.</summary>
 public interface IUnitOfWork
 {

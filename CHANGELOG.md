@@ -22,6 +22,11 @@ e [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Testes unitários de cada handler isolado (sem dispatcher), incluindo a junção de itens repetidos com o preço do catálogo e o decorator que converte `DomainException`.
 - Cenários de API: filtro da listagem por cliente e status, cancelamento sem motivo, rota com id inválido, respostas de erro no OpenAPI e erro inesperado devolvendo 500 sem detalhe interno.
 - 14 testes novos.
+- Reserva de estoque ao confirmar o pedido e devolução ao cancelar um pedido confirmado, na mesma transação do pedido.
+- Token de concorrência `version` no produto (migration `AddProductVersion`), e `ConcurrencyConflictException` traduzida da exceção do EF Core.
+- Conflito de concorrência vira `Result` com 409 (`concurrency_conflict`) pelo decorator do pipeline.
+- Teste com 10 pedidos disputando a última unidade, num SQLite em arquivo: um confirmado, estoque zerado e nunca negativo.
+- 9 testes novos.
 
 ### Removido
 - `NotFoundException` e `ConflictException`: essas falhas agora voltam como `Result`.
