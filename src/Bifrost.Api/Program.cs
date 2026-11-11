@@ -1,11 +1,35 @@
 using Bifrost.Api.Errors;
+using Bifrost.Api.Observability;
 using Bifrost.Application;
 using Bifrost.Infrastructure;
 using Bifrost.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
+using Serilog;
+using Serilog.Formatting.Compact;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Logs estruturados: cada propriedade (CorrelationId, ElapsedMs, Message...) vira um campo, e não só texto.
+// Em desenvolvimento, uma linha legível; fora dele, JSON compacto, pronto para uma ferramenta de busca de logs.
+// ReadFrom.Services acrescenta os destinos registrados no DI; os testes usam isso para ler os logs.
+// preserveStaticLogger: cada host tem o próprio logger, sem trocar o Log.Logger estático do processo.
+// Sem isso, dois hosts no mesmo processo (como nos testes em paralelo) misturariam os logs um do outro.
+builder.Services.AddSerilog(preserveStaticLogger: true, configureLogger: (services, logger) =>
+{
+    logger.ReadFrom.Configuration(builder.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext();
+
+    if (builder.Environment.IsDevelopment())
+    {
+        logger.WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {CorrelationId} {Message:lj}{NewLine}{Exception}");
+    }
+    else
+    {
+        logger.WriteTo.Console(new RenderedCompactJsonFormatter());
+    }
+});
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(services =>
@@ -20,6 +44,14 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
+app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} respondeu {StatusCode} em {Elapsed:0.0} ms";
+
+    // Sem isso, o log da requisição iria para o Log.Logger estático, que fica mudo com preserveStaticLogger.
+    options.Logger = app.Services.GetRequiredService<Serilog.ILogger>();
+});
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 

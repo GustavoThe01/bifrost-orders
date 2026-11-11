@@ -5,6 +5,10 @@ e [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+## [0.2.0] - 2026-11-11
+
+Segunda semana do roadmap: leitura com Dapper, Result pattern, testes da API, concorrência de estoque e logs estruturados.
+
 ### Adicionado
 - Leituras de pedido com Dapper: detalhe com `QueryMultiple` (cabeçalho e itens numa ida ao banco) e listagem com o total somado em SQL.
 - `GET /api/v1/orders`: listagem paginada, do pedido mais recente para o mais antigo, com filtro por cliente e status.
@@ -27,6 +31,11 @@ e [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Conflito de concorrência vira `Result` com 409 (`concurrency_conflict`) pelo decorator do pipeline.
 - Teste com 10 pedidos disputando a última unidade, num SQLite em arquivo: um confirmado, estoque zerado e nunca negativo.
 - 9 testes novos.
+- Serilog.AspNetCore 10.0.0 com logs estruturados: texto legível em desenvolvimento e JSON compacto nos outros ambientes, com níveis mínimos na seção `Serilog` do `appsettings.json`.
+- `CorrelationIdMiddleware`: usa o `X-Correlation-Id` recebido (só letras, números, `.`, `_` e `-`, até 64 caracteres) ou cria um novo, devolve na resposta e coloca o id em todo log da requisição.
+- Log de cada requisição HTTP com método, caminho, status e tempo (`UseSerilogRequestLogging`).
+- Campo `correlationId` em todas as respostas ProblemDetails.
+- 7 testes de correlation id e de logs estruturados (117 no total).
 
 ### Removido
 - `NotFoundException` e `ConflictException`: essas falhas agora voltam como `Result`.

@@ -15,8 +15,10 @@ eventos confiáveis com Outbox, integrações resilientes e observabilidade com 
 ![EF Core](https://img.shields.io/badge/EF_Core-10-6C3FC5?style=flat-square)
 ![CQRS](https://img.shields.io/badge/CQRS-dispatcher_próprio-0ea5e9?style=flat-square)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-planejado-425CC7?style=flat-square&logo=opentelemetry&logoColor=white)
-![Roadmap](https://img.shields.io/badge/roadmap-dia_09_de_20-1e3a8a?style=flat-square)
-![Testes](https://img.shields.io/badge/testes-110_passando-15803d?style=flat-square)
+![Serilog](https://img.shields.io/badge/Serilog-logs_estruturados-1e3a8a?style=flat-square)
+![Versão](https://img.shields.io/badge/versão-0.2.0-1e3a8a?style=flat-square)
+![Roadmap](https://img.shields.io/badge/roadmap-dia_10_de_20-1e3a8a?style=flat-square)
+![Testes](https://img.shields.io/badge/testes-117_passando-15803d?style=flat-square)
 
 </div>
 
@@ -58,6 +60,8 @@ Nela eu junto o que pratico nos outros projetos: o modelo de dados do [Mercurium
 - [CQRS: escrita e leitura separadas](#-cqrs-escrita-e-leitura-separadas)
 - [O ciclo de vida de um pedido](#-o-ciclo-de-vida-de-um-pedido)
 - [Eventos confiáveis com Outbox](#-eventos-confiáveis-com-outbox)
+- [Dez pedidos, uma unidade](#-dez-pedidos-uma-unidade)
+- [Logs estruturados e correlation id](#-logs-estruturados-e-correlation-id)
 - [Competências demonstradas](#-competências-demonstradas)
 - [Metodologias e decisões](#-metodologias-e-decisões)
 - [Roadmap](#️-roadmap)
@@ -291,6 +295,48 @@ o saldo.
 
 ---
 
+## 🔍 Logs estruturados e correlation id
+
+Toda requisição ganha um **id de correlação**. Se quem chama manda o cabeçalho `X-Correlation-Id`, uso o valor
+recebido; se não manda, crio um novo. O id volta no cabeçalho da resposta, aparece no corpo de todo ProblemDetails
+(`correlationId`) e entra como propriedade em **todo log** escrito durante aquela requisição. Com ele, dá para separar
+nos logs o que aconteceu num pedido, mesmo com várias requisições ao mesmo tempo.
+
+| Peça | O que faz |
+|---|---|
+| [`CorrelationIdMiddleware`](src/Bifrost.Api/Observability/CorrelationIdMiddleware.cs) | Lê ou cria o id, devolve na resposta e o coloca no `LogContext` do Serilog |
+| `UseSerilogRequestLogging` | Uma linha por requisição: método, caminho, status e tempo |
+| `LoggingCommandDecorator` / `LoggingQueryDecorator` (do Dia 04) | Uma linha por command/query, com o resultado e o tempo; agora com o id junto |
+| Formato | Em desenvolvimento, texto legível; fora dele, JSON compacto (`RenderedCompactJsonFormatter`) |
+
+O cabeçalho vem de fora e vai parar nos logs, então só aceito letras, números, `.`, `_` e `-`, com no máximo
+64 caracteres. Qualquer outra coisa (espaço, `<script>`, quebra de linha, texto gigante) é trocada por um id novo.
+
+Saída real da API em desenvolvimento, com duas chamadas (`demo-readme-1` e `demo-readme-2` são os ids que mandei):
+
+```text
+[09:19:42 INF] demo-readme-1 ListProductsQuery concluído em 193.0 ms
+[09:19:42 INF] demo-readme-1 HTTP GET /api/v1/products respondeu 200 em 327.1 ms
+[09:19:42 INF] demo-readme-2 GetOrderByIdQuery recusado (order.not_found) em 208.3 ms
+[09:19:42 INF] demo-readme-2 HTTP GET /api/v1/orders/00000000-0000-0000-0000-000000000001 respondeu 404 em 271.6 ms
+```
+
+Em produção, a mesma requisição vira um JSON em que cada valor é um campo próprio, pronto para filtrar numa
+ferramenta de logs (`CorrelationId = "demo-readme-3"`, `StatusCode >= 500`...):
+
+```json
+{"@t":"2026-11-11T12:20:02.3001379Z","@m":"HTTP \"GET\" \"/health\" respondeu 200 em 15.3 ms","RequestMethod":"GET","RequestPath":"/health","StatusCode":200,"Elapsed":15.3042,"CorrelationId":"demo-readme-3"}
+```
+
+<sub>Linha encurtada: o original também traz o trace id, o span id e os ids de conexão.</sub>
+
+Um detalhe que só apareceu nos testes: com o logger estático do Serilog, os hosts de teste criados em paralelo
+escreviam uns nos logs dos outros. A configuração usa `AddSerilog(preserveStaticLogger: true)`, e cada host tem o
+próprio logger, criado pela injeção de dependência. Os testes leem os logs por um destino em memória registrado no DI
+e conferem que o log do handler e o da requisição saem com o mesmo id.
+
+---
+
 ## 🧠 Competências demonstradas
 
 | Área | Conceitos |
@@ -330,7 +376,7 @@ o saldo.
 | Semana | Dias | Tema | Release | Progresso |
 |---|---|---|:---:|---|
 | 1 | 01–05 | Solution, domínio, EF Core, CQRS, API | `v0.1.0` | 🟦🟦🟦🟦🟦 |
-| 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | 🟦🟦🟦🟦⬜ |
+| 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | 🟦🟦🟦🟦🟦 |
 | 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | ⬜⬜⬜⬜⬜ |
 | 4 | 16–20 | Cache, versionamento, OpenTelemetry, qualidade e entrega | `v1.0.0` | ⬜⬜⬜⬜⬜ |
 
@@ -394,7 +440,7 @@ dotnet test
 |---|---|---|
 | `Bifrost.Domain.Tests` | Unitários do domínio + regra de camadas | ✅ 44 testes (Order, Product, reserva de estoque, value objects, camadas) |
 | `Bifrost.Application.Tests` | Pipeline completo e cada handler isolado, com NSubstitute | ✅ 31 testes |
-| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 35 testes de persistência, fluxo, leitura com Dapper, concorrência de estoque e API com `WebApplicationFactory` |
+| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 42 testes de persistência, fluxo, leitura com Dapper, concorrência de estoque, API com `WebApplicationFactory` e correlation id nos logs |
 | `Bifrost.ArchitectureTests` | NetArchTest | ⏳ Dia 19 |
 | Carga | k6 no endpoint de criação de pedido | ⏳ Dia 19 |
 
@@ -412,7 +458,7 @@ bifrost-orders/
 │   ├── Bifrost.Domain/               # ✅ Order, Product, value objects, eventos
 │   ├── Bifrost.Application/          # ✅ dispatcher, pipeline, commands e queries
 │   ├── Bifrost.Infrastructure/       # ✅ EF Core (escrita), Dapper (leitura), migration, seed
-│   └── Bifrost.Api/                  # ✅ controllers, Result → ProblemDetails, OpenAPI
+│   └── Bifrost.Api/                  # ✅ controllers, Result → ProblemDetails, OpenAPI, Serilog e correlation id
 ├── tests/
 │   ├── Bifrost.Domain.Tests/         # ✅ testes do domínio e de arquitetura
 │   ├── Bifrost.Application.Tests/    # ✅ testes do pipeline e dos handlers
@@ -438,7 +484,7 @@ Mantenho aqui um checklist vivo do que ainda vou incrementar neste repositório.
 - [x] EF Core + SQLite, configurações e primeira migration (Dia 03)
 - [x] Dispatcher CQRS e pipeline de validação (Dia 04)
 - [x] Controllers, ProblemDetails e OpenAPI (Dia 05) → `v0.1.0`
-- [ ] Leitura com Dapper, Result pattern, testes, concorrência e Serilog (Dias 06–10) → `v0.2.0`
+- [x] Leitura com Dapper, Result pattern, testes, concorrência e Serilog (Dias 06–10) → `v0.2.0`
 - [ ] JWT, políticas, Outbox, resiliência e Docker (Dias 11–15) → `v0.3.0`
 - [ ] Cache, versionamento, OpenTelemetry, NetArchTest, k6 e entrega (Dias 16–20) → `v1.0.0`
 

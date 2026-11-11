@@ -44,8 +44,8 @@
 - [x] Teste de pedidos simultâneos disputando o último item
 
 ### Dia 10 — Logging
-- [ ] Serilog estruturado, middleware de **correlation id**
-- [ ] Tag `v0.2.0`
+- [x] Serilog estruturado, middleware de **correlation id**
+- [x] Tag `v0.2.0`
 
 ## Semana 3 — Segurança e integrações  → `v0.3.0`
 

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Bifrost.Api.Observability;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
@@ -27,6 +28,7 @@ internal sealed partial class GlobalExceptionHandler(ILogger<GlobalExceptionHand
             Instance = httpContext.Request.Path,
         };
         problem.Extensions["traceId"] = Activity.Current?.Id ?? httpContext.TraceIdentifier;
+        problem.Extensions["correlationId"] = CorrelationIdMiddleware.Of(httpContext);
 
         httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
         await httpContext.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json", cancellationToken);
