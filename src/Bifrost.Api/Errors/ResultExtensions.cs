@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Bifrost.Api.Observability;
 using Bifrost.Application.Results;
 using Microsoft.AspNetCore.Mvc;
 
@@ -47,6 +48,7 @@ internal static class ResultExtensions
         };
         problem.Extensions["code"] = error.Code;
         problem.Extensions["traceId"] = Activity.Current?.Id ?? controller.HttpContext.TraceIdentifier;
+        problem.Extensions["correlationId"] = CorrelationIdMiddleware.Of(controller.HttpContext);
         if (error.Fields.Count > 0)
         {
             problem.Extensions["errors"] = error.Fields
