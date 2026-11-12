@@ -17,8 +17,8 @@ eventos confiáveis com Outbox, integrações resilientes e observabilidade com 
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-planejado-425CC7?style=flat-square&logo=opentelemetry&logoColor=white)
 ![Serilog](https://img.shields.io/badge/Serilog-logs_estruturados-1e3a8a?style=flat-square)
 ![Versão](https://img.shields.io/badge/versão-0.2.0-1e3a8a?style=flat-square)
-![Roadmap](https://img.shields.io/badge/roadmap-dia_10_de_20-1e3a8a?style=flat-square)
-![Testes](https://img.shields.io/badge/testes-117_passando-15803d?style=flat-square)
+![Roadmap](https://img.shields.io/badge/roadmap-dia_11_de_20-1e3a8a?style=flat-square)
+![Testes](https://img.shields.io/badge/testes-126_passando-15803d?style=flat-square)
 
 </div>
 
@@ -62,6 +62,7 @@ Nela eu junto o que pratico nos outros projetos: o modelo de dados do [Mercurium
 - [Eventos confiáveis com Outbox](#-eventos-confiáveis-com-outbox)
 - [Dez pedidos, uma unidade](#-dez-pedidos-uma-unidade)
 - [Logs estruturados e correlation id](#-logs-estruturados-e-correlation-id)
+- [Autenticação com JWT](#-autenticação-com-jwt)
 - [Competências demonstradas](#-competências-demonstradas)
 - [Metodologias e decisões](#-metodologias-e-decisões)
 - [Roadmap](#️-roadmap)
@@ -117,10 +118,10 @@ Escolhi o nome porque um pedido também atravessa mundos: sai do **carrinho do c
 |---|---|---|:---:|
 | `GET` | `/health` | Saúde da aplicação | ✅ 01 |
 | `GET` | `/health/ready` · `/health/live` | Prontidão e vitalidade (Docker/Kubernetes) | 15 |
-| `POST` | `/api/v1/auth/token` | Emite token JWT | 11 |
-| `GET` | `/api/v1/products` | Catálogo (paginação no 06 e cache no 16) | ✅ 05 |
-| `POST` | `/api/v1/products` | Cadastra produto (perfil `Admin` a partir do 11) | ✅ 05 |
-| `POST` | `/api/v1/orders` | Cria pedido | ✅ 05 |
+| `POST` | `/api/v1/auth/token` | Emite token JWT (contas de demonstração) | ✅ 11 |
+| `GET` | `/api/v1/products` | Catálogo, sem token (paginação no 06 e cache no 16) | ✅ 05 |
+| `POST` | `/api/v1/products` | Cadastra produto, só perfil `Admin` | ✅ 05 · perfil no 11 |
+| `POST` | `/api/v1/orders` | Cria pedido para o cliente dono do token, só perfil `Customer` | ✅ 05 · token no 11 |
 | `GET` | `/api/v1/orders` | Lista pedidos com filtro por cliente e status, paginada (Dapper) | ✅ 06 |
 | `GET` | `/api/v1/orders/{id}` | Detalhe do pedido | ✅ 05 |
 | `POST` | `/api/v1/orders/{id}/confirm` | Confirma o pedido e reserva o estoque | ✅ 05 · reserva no 09 |
@@ -337,6 +338,62 @@ e conferem que o log do handler e o da requisição saem com o mesmo id.
 
 ---
 
+## 🔐 Autenticação com JWT
+
+As rotas de pedido exigem um token JWT no cabeçalho `Authorization: Bearer <token>`, e cadastrar produto exige o
+perfil `Admin`. O catálogo continua aberto. A API valida cada token sem sessão e sem consultar banco: confere a
+assinatura (HMAC-SHA256), o emissor, o público (`aud`) e a validade, com 30 segundos de tolerância de relógio.
+
+Payload real de um token da cliente de demonstração:
+
+```json
+{"aud": "bifrost-orders-api", "iss": "bifrost-orders", "exp": 1794487953, "iat": 1794484353, "nbf": 1794484353,
+ "sub": "c0000000-0000-4000-8000-000000000001", "email": "cliente@bifrost.test", "jti": "30f48fcdce2d450abbcd0c38870c69a1", "role": "Customer"}
+```
+
+**O cliente do pedido vem do token.** Até o Dia 10, o `customerId` vinha no corpo do pedido, e qualquer um podia
+criar pedido em nome de outra pessoa. Agora ele vem do claim `sub`, e um `customerId` no corpo é ignorado. Há um
+teste que manda outro id no corpo e confere que o pedido ficou com o dono do token.
+
+| Situação | Resposta |
+|---|---|
+| Sem token, token vencido, assinado com outra chave, de outro emissor ou para outra API | `401` com `WWW-Authenticate: Bearer` |
+| Token adulterado (um cliente trocando `Customer` por `Admin` no payload) | `401`: a assinatura não bate |
+| Token válido, mas o perfil não pode (cliente cadastrando produto, administrador criando pedido) | `403` |
+| E-mail desconhecido ou senha errada no `/auth/token` | `401`, com a mesma mensagem para os dois casos |
+
+Os `401` e `403` saem no mesmo formato ProblemDetails dos outros erros. Resposta real de um cliente tentando
+cadastrar produto:
+
+```json
+{"type": "/problems/forbidden", "title": "Sem permissão", "status": 403,
+ "detail": "O seu perfil não pode fazer esta operação.", "correlationId": "25cdf86487e546eaab5d7580e0453d72"}
+```
+
+**De onde vem o token.** Num sistema real, quem emite o token é um provedor de identidade (Entra ID, Keycloak,
+Auth0), e a API só valida. Para dar para testar sem depender de um serviço externo, a API tem um emissor próprio,
+o [`TokenIssuer`](src/Bifrost.Api/Auth/TokenIssuer.cs), e três contas de demonstração em
+[`demo-accounts.json`](src/Bifrost.Api/demo-accounts.json), carregadas só em desenvolvimento:
+
+| E-mail | Senha | Perfil |
+|---|---|---|
+| `admin@bifrost.test` | `admin-demo-2026` | `Admin` |
+| `cliente@bifrost.test` | `cliente-demo-2026` | `Customer` |
+| `outra.cliente@bifrost.test` | `outra-cliente-2026` | `Customer` |
+
+O arquivo guarda o hash PBKDF2 das senhas, no formato do `PasswordHasher` do ASP.NET Core Identity, e nunca a senha.
+Mesmo com e-mail desconhecido, o hash é conferido contra uma senha qualquer, para o tempo de resposta não revelar
+quais contas existem.
+
+**A chave de assinatura nunca vai para o repositório.** Fora de desenvolvimento, ela vem da variável de ambiente
+`Jwt__SigningKey` (Base64, pelo menos 32 bytes); sem ela, a API não sobe. Em desenvolvimento, se nenhuma chave foi
+configurada, a API gera uma nova a cada execução, e os tokens deixam de valer quando ela reinicia.
+
+> A regra "cliente só vê e mexe nos próprios pedidos" ainda não existe: hoje qualquer token válido consulta, confirma
+> ou cancela qualquer pedido. Ela é o Dia 12, com as políticas de autorização.
+
+---
+
 ## 🧠 Competências demonstradas
 
 | Área | Conceitos |
@@ -377,7 +434,7 @@ e conferem que o log do handler e o da requisição saem com o mesmo id.
 |---|---|---|:---:|---|
 | 1 | 01–05 | Solution, domínio, EF Core, CQRS, API | `v0.1.0` | 🟦🟦🟦🟦🟦 |
 | 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | 🟦🟦🟦🟦🟦 |
-| 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | ⬜⬜⬜⬜⬜ |
+| 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | 🟦⬜⬜⬜⬜ |
 | 4 | 16–20 | Cache, versionamento, OpenTelemetry, qualidade e entrega | `v1.0.0` | ⬜⬜⬜⬜⬜ |
 
 Detalhes no [ROADMAP.md](ROADMAP.md) · Mudanças no [CHANGELOG.md](CHANGELOG.md).
@@ -424,7 +481,19 @@ dotnet ef migrations add NomeDaMigration --project src/Bifrost.Infrastructure --
 
 > 🐳 A partir do Dia 15: `docker compose up`.
 > 📘 Com a API no ar em desenvolvimento, a documentação interativa fica em `http://localhost:5080/scalar/v1`.
-> Até o Dia 11, o cliente do pedido vem no corpo da requisição. Depois, vem do token JWT.
+
+Para pegar um token da cliente de demonstração (as contas estão na seção [Autenticação com JWT](#-autenticação-com-jwt)):
+
+```bash
+curl -s -X POST http://localhost:5080/api/v1/auth/token -H "Content-Type: application/json" -d '{"email":"cliente@bifrost.test","password":"cliente-demo-2026"}'
+```
+
+Depois, envie o `accessToken` da resposta no cabeçalho `Authorization: Bearer <token>`. Fora de desenvolvimento,
+configure a chave antes de subir a API:
+
+```bash
+export Jwt__SigningKey="$(openssl rand -base64 32)"
+```
 
 ---
 
@@ -440,7 +509,7 @@ dotnet test
 |---|---|---|
 | `Bifrost.Domain.Tests` | Unitários do domínio + regra de camadas | ✅ 44 testes (Order, Product, reserva de estoque, value objects, camadas) |
 | `Bifrost.Application.Tests` | Pipeline completo e cada handler isolado, com NSubstitute | ✅ 31 testes |
-| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 42 testes de persistência, fluxo, leitura com Dapper, concorrência de estoque, API com `WebApplicationFactory` e correlation id nos logs |
+| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 51 testes de persistência, fluxo, leitura com Dapper, concorrência de estoque, API com `WebApplicationFactory`, correlation id nos logs e JWT (401, 403, token vencido, adulterado ou de outra chave) |
 | `Bifrost.ArchitectureTests` | NetArchTest | ⏳ Dia 19 |
 | Carga | k6 no endpoint de criação de pedido | ⏳ Dia 19 |
 
@@ -458,7 +527,7 @@ bifrost-orders/
 │   ├── Bifrost.Domain/               # ✅ Order, Product, value objects, eventos
 │   ├── Bifrost.Application/          # ✅ dispatcher, pipeline, commands e queries
 │   ├── Bifrost.Infrastructure/       # ✅ EF Core (escrita), Dapper (leitura), migration, seed
-│   └── Bifrost.Api/                  # ✅ controllers, Result → ProblemDetails, OpenAPI, Serilog e correlation id
+│   └── Bifrost.Api/                  # ✅ controllers, Result → ProblemDetails, OpenAPI, Serilog, correlation id e JWT
 ├── tests/
 │   ├── Bifrost.Domain.Tests/         # ✅ testes do domínio e de arquitetura
 │   ├── Bifrost.Application.Tests/    # ✅ testes do pipeline e dos handlers
@@ -485,7 +554,8 @@ Mantenho aqui um checklist vivo do que ainda vou incrementar neste repositório.
 - [x] Dispatcher CQRS e pipeline de validação (Dia 04)
 - [x] Controllers, ProblemDetails e OpenAPI (Dia 05) → `v0.1.0`
 - [x] Leitura com Dapper, Result pattern, testes, concorrência e Serilog (Dias 06–10) → `v0.2.0`
-- [ ] JWT, políticas, Outbox, resiliência e Docker (Dias 11–15) → `v0.3.0`
+- [x] Autenticação com JWT e perfis `Admin` e `Customer` (Dia 11)
+- [ ] Políticas, Outbox, resiliência e Docker (Dias 12–15) → `v0.3.0`
 - [ ] Cache, versionamento, OpenTelemetry, NetArchTest, k6 e entrega (Dias 16–20) → `v1.0.0`
 
 **README**

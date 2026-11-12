@@ -19,6 +19,7 @@ public sealed class OrdersApiTests : IAsyncLifetime
     private SqliteConnection _keepAlive = null!;
     private WebApplicationFactory<Program> _factory = null!;
     private HttpClient _client = null!;
+    private HttpClient _admin = null!;
 
     public async ValueTask InitializeAsync()
     {
@@ -27,12 +28,15 @@ public sealed class OrdersApiTests : IAsyncLifetime
 
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             builder.UseSetting("ConnectionStrings:Bifrost", _connectionString));
-        _client = _factory.CreateClient();
+        // Por padrão, as chamadas saem como a cliente de demonstração; o cadastro de produto, como administrador.
+        _client = _factory.Customer();
+        _admin = _factory.Admin();
     }
 
     public async ValueTask DisposeAsync()
     {
         _client.Dispose();
+        _admin.Dispose();
         await _factory.DisposeAsync();
         await _keepAlive.DisposeAsync();
     }
@@ -48,7 +52,6 @@ public sealed class OrdersApiTests : IAsyncLifetime
 
     private static object OrderBody(string productId, int quantity = 2) => new
     {
-        customerId = Guid.NewGuid(),
         shippingAddress = new { street = "Av. Beira Mar", number = "100", city = "Fortaleza", state = "CE", zipCode = "60165121" },
         currency = "BRL",
         items = new[] { new { productId, quantity } },
@@ -83,8 +86,8 @@ public sealed class OrdersApiTests : IAsyncLifetime
     {
         var body = new { sku = "NOV-001", name = "Novidade", price = 10.50m, currency = "BRL", stockQuantity = 3 };
 
-        var created = await _client.PostAsJsonAsync("/api/v1/products", body, _token);
-        var repeated = await _client.PostAsJsonAsync("/api/v1/products", body, _token);
+        var created = await _admin.PostAsJsonAsync("/api/v1/products", body, _token);
+        var repeated = await _admin.PostAsJsonAsync("/api/v1/products", body, _token);
 
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         await AssertProblemAsync(repeated, HttpStatusCode.Conflict, "conflict");
@@ -210,20 +213,21 @@ public sealed class OrdersApiTests : IAsyncLifetime
     {
         var productId = await FirstProductIdAsync();
         var ana = Guid.NewGuid();
-        object Body(Guid customer) => new
+        using var anaClient = _factory.Customer(ana);
+        using var someoneElse = _factory.Customer(Guid.NewGuid());
+        var body = new
         {
-            customerId = customer,
             shippingAddress = new { street = "Rua A", number = "1", city = "Fortaleza", state = "CE", zipCode = "60165121" },
             currency = "BRL",
             items = new[] { new { productId, quantity = 1 } },
         };
-        var first = (await JsonAsync(await _client.PostAsJsonAsync("/api/v1/orders", Body(ana), _token))).GetProperty("id").GetString();
-        await _client.PostAsJsonAsync("/api/v1/orders", Body(ana), _token);
-        await _client.PostAsJsonAsync("/api/v1/orders", Body(Guid.NewGuid()), _token);
-        await _client.PostAsync($"/api/v1/orders/{first}/confirm", null, _token);
+        var first = (await JsonAsync(await anaClient.PostAsJsonAsync("/api/v1/orders", body, _token))).GetProperty("id").GetString();
+        await anaClient.PostAsJsonAsync("/api/v1/orders", body, _token);
+        await someoneElse.PostAsJsonAsync("/api/v1/orders", body, _token);
+        await _admin.PostAsync($"/api/v1/orders/{first}/confirm", null, _token);
 
-        var anas = await _client.GetFromJsonAsync<JsonElement>($"/api/v1/orders?customerId={ana}", _token);
-        var confirmed = await _client.GetFromJsonAsync<JsonElement>($"/api/v1/orders?customerId={ana}&status=confirmed", _token);
+        var anas = await _admin.GetFromJsonAsync<JsonElement>($"/api/v1/orders?customerId={ana}", _token);
+        var confirmed = await _admin.GetFromJsonAsync<JsonElement>($"/api/v1/orders?customerId={ana}&status=confirmed", _token);
 
         Assert.Equal(2, anas.GetProperty("totalItems").GetInt32());
         Assert.Equal(first, Assert.Single(confirmed.GetProperty("items").EnumerateArray().ToList()).GetProperty("id").GetString());

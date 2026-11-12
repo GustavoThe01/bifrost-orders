@@ -50,7 +50,7 @@
 ## Semana 3 — Segurança e integrações  → `v0.3.0`
 
 ### Dia 11 — Autenticação
-- [ ] JWT (emissão e validação), roles `Admin` e `Customer`
+- [x] JWT (emissão e validação), roles `Admin` e `Customer`
 
 ### Dia 12 — Autorização
 - [ ] Políticas: cliente só acessa os próprios pedidos; testes 401/403

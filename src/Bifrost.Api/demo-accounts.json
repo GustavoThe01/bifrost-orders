@@ -1,0 +1,23 @@
+{
+  "_comentario": "Contas de demonstração, carregadas só em desenvolvimento (e nos testes). Guardam o hash PBKDF2 das senhas, não as senhas.",
+  "DemoAccounts": [
+    {
+      "Email": "admin@bifrost.test",
+      "PasswordHash": "AQAAAAIAAYagAAAAEHTXrbF1wtrfrwDh8rW7AZvdmFCw1cLY6AfKKtc99kON1brD6sbSwfE0P1EWmJNc2w==",
+      "Role": "Admin",
+      "SubjectId": "a0000000-0000-4000-8000-000000000001"
+    },
+    {
+      "Email": "cliente@bifrost.test",
+      "PasswordHash": "AQAAAAIAAYagAAAAEMkL3s+ru2/eXN6+K6tsDgMulE3GQjOOs39bf9QXmlEj/QNr6nWl2Uk9acr0qBkKpg==",
+      "Role": "Customer",
+      "SubjectId": "c0000000-0000-4000-8000-000000000001"
+    },
+    {
+      "Email": "outra.cliente@bifrost.test",
+      "PasswordHash": "AQAAAAIAAYagAAAAEMgokfSUUW5mTnA5TsWU5irRiis6Lvot521PzMGuvL/KM83fBJkbi5wHBMl94ZnvDg==",
+      "Role": "Customer",
+      "SubjectId": "c0000000-0000-4000-8000-000000000002"
+    }
+  ]
+}

@@ -2,21 +2,25 @@ using Bifrost.Api.Errors;
 using Bifrost.Application.Messaging;
 using Bifrost.Application.Orders;
 using Bifrost.Domain.Orders;
+using Bifrost.Api.Auth;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Bifrost.Api.Controllers;
 
+/// <remarks>Todas as rotas exigem token. A regra "cliente só vê os próprios pedidos" entra no Dia 12.</remarks>
 [ApiController]
 [Route("api/v1/orders")]
+[Authorize]
+[ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
 public sealed class OrdersController(IDispatcher dispatcher) : ControllerBase
 {
     public sealed record AddressRequest(string Street, string Number, string City, string State, string ZipCode);
 
     public sealed record OrderItemRequest(Guid ProductId, int Quantity);
 
-    /// <summary>O cliente vem no corpo apenas até o Dia 11, quando passa a vir do token JWT.</summary>
+    /// <summary>O cliente não vem no corpo: é o dono do token (claim <c>sub</c>).</summary>
     public sealed record CreateOrderRequest(
-        Guid CustomerId,
         AddressRequest ShippingAddress,
         string Currency,
         IReadOnlyList<OrderItemRequest> Items);
@@ -27,8 +31,10 @@ public sealed class OrdersController(IDispatcher dispatcher) : ControllerBase
 
     public sealed record OrderStatusResponse(Guid Id, string Status);
 
-    /// <summary>Cria um pedido com os preços atuais do catálogo.</summary>
+    /// <summary>Cria um pedido com os preços atuais do catálogo, para o cliente dono do token.</summary>
     [HttpPost]
+    [Authorize(Roles = Roles.Customer)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
     [ProducesResponseType<CreatedResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
@@ -38,7 +44,7 @@ public sealed class OrdersController(IDispatcher dispatcher) : ControllerBase
         var address = request.ShippingAddress;
         var result = await dispatcher.SendAsync(
             new CreateOrderCommand(
-                request.CustomerId,
+                CustomerId(),
                 new ShippingAddressInput(address.Street, address.Number, address.City, address.State, address.ZipCode),
                 request.Currency,
                 request.Items.Select(item => new OrderItemInput(item.ProductId, item.Quantity)).ToList()),
@@ -84,6 +90,9 @@ public sealed class OrdersController(IDispatcher dispatcher) : ControllerBase
         this.ToActionResult(
             await dispatcher.SendAsync(new CancelOrderCommand(id, request.Reason), cancellationToken),
             status => Ok(ToResponse(id, status)));
+
+    /// <summary>O id do cliente que está no token. A rota só aceita o perfil Customer, que sempre tem esse claim.</summary>
+    private Guid CustomerId() => Guid.Parse(User.FindFirst("sub")!.Value);
 
     private static OrderStatusResponse ToResponse(Guid id, OrderStatus status) => new(id, status.ToString());
 }

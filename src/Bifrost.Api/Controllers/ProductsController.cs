@@ -2,6 +2,8 @@ using Bifrost.Api.Errors;
 using Bifrost.Application.Catalog;
 using Bifrost.Application.Messaging;
 using Bifrost.Application.Orders;
+using Bifrost.Api.Auth;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Bifrost.Api.Controllers;
@@ -14,14 +16,18 @@ public sealed class ProductsController(IDispatcher dispatcher) : ControllerBase
 
     public sealed record CreatedResponse(Guid Id);
 
-    /// <summary>Lista o catálogo.</summary>
+    /// <summary>Lista o catálogo. Aberto a qualquer pessoa, sem token.</summary>
     [HttpGet]
+    [AllowAnonymous]
     [ProducesResponseType<IReadOnlyList<ProductDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ProductDto>>> List(CancellationToken cancellationToken) =>
         this.ToActionResult(await dispatcher.QueryAsync(new ListProductsQuery(), cancellationToken));
 
-    /// <summary>Cadastra um produto. No Dia 11, passa a exigir o perfil de administrador.</summary>
+    /// <summary>Cadastra um produto. Só administradores.</summary>
     [HttpPost]
+    [Authorize(Roles = Roles.Admin)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
     [ProducesResponseType<CreatedResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]

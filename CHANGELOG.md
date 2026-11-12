@@ -5,6 +5,18 @@ e [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+### Adicionado
+- Autenticação JWT (Microsoft.AspNetCore.Authentication.JwtBearer 10.0.14): assinatura HMAC-SHA256, emissor, público e validade conferidos em cada requisição.
+- `POST /api/v1/auth/token`, que troca e-mail e senha de uma conta de demonstração por um token de 60 minutos.
+- Perfis `Admin` e `Customer`: cadastrar produto exige `Admin`; criar pedido exige `Customer`; as demais rotas de pedido exigem um token válido.
+- Contas de demonstração em `demo-accounts.json` (só em desenvolvimento), com hash PBKDF2 do `PasswordHasher` do ASP.NET Core Identity.
+- Opções `Jwt` validadas na partida: fora de desenvolvimento, sem `Jwt__SigningKey` com pelo menos 32 bytes, a API não sobe. Em desenvolvimento, sem chave configurada, uma chave nova é gerada a cada execução.
+- Respostas `401` e `403` no mesmo formato ProblemDetails dos outros erros.
+- 9 testes de autenticação (126 no total): 401, 403, token vencido, adulterado, de outra chave, de outro emissor e para outra API.
+
+### Alterado
+- O cliente do pedido vem do claim `sub` do token, e não mais do corpo da requisição.
+
 ## [0.2.0] - 2026-11-11
 
 Segunda semana do roadmap: leitura com Dapper, Result pattern, testes da API, concorrência de estoque e logs estruturados.
