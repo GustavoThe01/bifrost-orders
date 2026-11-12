@@ -39,7 +39,7 @@ public sealed class CorrelationIdTests : IAsyncLifetime
             builder.UseSetting("ConnectionStrings:Bifrost", _connectionString);
             builder.ConfigureTestServices(services => services.AddSingleton<ILogEventSink>(_logs));
         });
-        _client = _factory.CreateClient();
+        _client = _factory.Customer();
     }
 
     public async ValueTask DisposeAsync()
@@ -118,7 +118,7 @@ public sealed class CorrelationIdTests : IAsyncLifetime
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders")
         {
-            Content = JsonContent.Create(new { customerId = Guid.Empty, currency = "BRL", items = Array.Empty<object>(),
+            Content = JsonContent.Create(new { currency = "BRL", items = Array.Empty<object>(),
                 shippingAddress = new { street = "Rua A", number = "1", city = "Fortaleza", state = "CE", zipCode = "60165121" } }),
         };
         request.Headers.Add(CorrelationIdMiddleware.HeaderName, "validacao-1");

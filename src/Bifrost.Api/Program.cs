@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using Bifrost.Api.Auth;
 using Bifrost.Api.Errors;
 using Bifrost.Api.Observability;
 using Bifrost.Application;
@@ -36,8 +38,41 @@ builder.Services.AddInfrastructure(services =>
     services.GetRequiredService<IConfiguration>().GetConnectionString("Bifrost")
     ?? throw new InvalidOperationException("A connection string 'Bifrost' não foi configurada."));
 
+// Em desenvolvimento (e nos testes), a API tem contas de demonstração e, se nenhuma chave foi configurada,
+// gera uma chave de assinatura nova a cada execução: os tokens deixam de valer quando a API reinicia.
+// Fora de desenvolvimento não há contas de demonstração, e a chave é obrigatória (Jwt__SigningKey).
+if (builder.Environment.IsDevelopment())
+{
+    builder.Configuration.AddJsonFile("demo-accounts.json", optional: false);
+    if (string.IsNullOrWhiteSpace(builder.Configuration["Jwt:SigningKey"]))
+    {
+        builder.Configuration["Jwt:SigningKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+    }
+}
+
+builder.Services.AddBifrostAuthentication(builder.Configuration);
 builder.Services.AddControllers();
-builder.Services.AddProblemDetails();
+
+// 401 e 403 saem do middleware de autenticação sem corpo; o UseStatusCodePages os completa com ProblemDetails.
+// Aqui eles ganham o mesmo formato dos outros erros da API.
+builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
+{
+    var problem = context.ProblemDetails;
+    if (problem.Status == StatusCodes.Status401Unauthorized && problem.Type?.StartsWith("https://", StringComparison.Ordinal) != false)
+    {
+        problem.Type = "/problems/unauthorized";
+        problem.Title = "Não autenticado";
+        problem.Detail = "Envie um token válido no cabeçalho Authorization: Bearer <token>.";
+    }
+    else if (problem.Status == StatusCodes.Status403Forbidden && problem.Type?.StartsWith("https://", StringComparison.Ordinal) != false)
+    {
+        problem.Type = "/problems/forbidden";
+        problem.Title = "Sem permissão";
+        problem.Detail = "O seu perfil não pode fazer esta operação.";
+    }
+
+    problem.Extensions.TryAdd("correlationId", CorrelationIdMiddleware.Of(context.HttpContext));
+});
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
@@ -54,6 +89,8 @@ app.UseSerilogRequestLogging(options =>
 });
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Só em desenvolvimento: em produção, as migrations rodam num passo próprio do deploy,
 // e a documentação interativa não fica exposta.
