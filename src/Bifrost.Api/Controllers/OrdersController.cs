@@ -1,6 +1,7 @@
 using Bifrost.Api.Errors;
 using Bifrost.Application.Messaging;
 using Bifrost.Application.Orders;
+using Bifrost.Application.Results;
 using Bifrost.Domain.Orders;
 using Bifrost.Api.Auth;
 using Microsoft.AspNetCore.Authorization;
@@ -8,12 +9,15 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Bifrost.Api.Controllers;
 
-/// <remarks>Todas as rotas exigem token. A regra "cliente só vê os próprios pedidos" entra no Dia 12.</remarks>
+/// <remarks>
+/// Todas as rotas exigem token. O administrador vê e mexe em qualquer pedido; o cliente, só nos dele
+/// (política <see cref="Policies.OrderOwner"/>). Pedido de outro cliente responde como pedido inexistente (404).
+/// </remarks>
 [ApiController]
 [Route("api/v1/orders")]
 [Authorize]
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
-public sealed class OrdersController(IDispatcher dispatcher) : ControllerBase
+public sealed class OrdersController(IDispatcher dispatcher, IAuthorizationService authorization) : ControllerBase
 {
     public sealed record AddressRequest(string Street, string Number, string City, string State, string ZipCode);
 
@@ -53,24 +57,49 @@ public sealed class OrdersController(IDispatcher dispatcher) : ControllerBase
         return this.ToActionResult(result, id => CreatedAtAction(nameof(GetById), new { id }, new CreatedResponse(id)));
     }
 
-    /// <summary>Lista pedidos do mais recente para o mais antigo, com filtro por cliente e status.</summary>
+    /// <summary>
+    /// Lista pedidos do mais recente para o mais antigo. O administrador filtra por qualquer cliente; o cliente só
+    /// vê os próprios pedidos, e pedir os de outro cliente dá 403.
+    /// </summary>
     [HttpGet]
     [ProducesResponseType<PagedResult<OrderSummaryDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
     public async Task<ActionResult<PagedResult<OrderSummaryDto>>> List(
         [FromQuery] Guid? customerId,
         [FromQuery] string? status,
         CancellationToken cancellationToken,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20) =>
-        this.ToActionResult(await dispatcher.QueryAsync(new ListOrdersQuery(customerId, status, page, pageSize), cancellationToken));
+        [FromQuery] int pageSize = 20)
+    {
+        if (!User.IsInRole(Roles.Admin))
+        {
+            var me = User.SubjectId();
+            if (customerId is not null && customerId != me)
+            {
+                return Forbid();
+            }
 
-    /// <summary>Detalha um pedido.</summary>
+            customerId = me;
+        }
+
+        return this.ToActionResult(await dispatcher.QueryAsync(new ListOrdersQuery(customerId, status, page, pageSize), cancellationToken));
+    }
+
+    /// <summary>Detalha um pedido do cliente (ou qualquer um, para o administrador).</summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
-    public async Task<ActionResult<OrderDto>> GetById(Guid id, CancellationToken cancellationToken) =>
-        this.ToActionResult(await dispatcher.QueryAsync(new GetOrderByIdQuery(id), cancellationToken));
+    public async Task<ActionResult<OrderDto>> GetById(Guid id, CancellationToken cancellationToken)
+    {
+        var order = await dispatcher.QueryAsync(new GetOrderByIdQuery(id), cancellationToken);
+        if (order.IsSuccess && !await CanAccessAsync(order.Value.CustomerId))
+        {
+            return this.ToActionResult(Result<OrderDto>.Failure(OrderErrors.OrderNotFound(id)));
+        }
+
+        return this.ToActionResult(order);
+    }
 
     /// <summary>Confirma o pedido. A reserva de estoque entra no Dia 09.</summary>
     [HttpPost("{id:guid}/confirm")]
@@ -78,7 +107,8 @@ public sealed class OrdersController(IDispatcher dispatcher) : ControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     public async Task<ActionResult<OrderStatusResponse>> Confirm(Guid id, CancellationToken cancellationToken) =>
-        this.ToActionResult(await dispatcher.SendAsync(new ConfirmOrderCommand(id), cancellationToken), status => Ok(ToResponse(id, status)));
+        await DenyUnlessOwnerAsync(id, cancellationToken)
+        ?? this.ToActionResult(await dispatcher.SendAsync(new ConfirmOrderCommand(id), cancellationToken), status => Ok(ToResponse(id, status)));
 
     /// <summary>Cancela um pedido que ainda não foi pago.</summary>
     [HttpPost("{id:guid}/cancel")]
@@ -87,12 +117,28 @@ public sealed class OrdersController(IDispatcher dispatcher) : ControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     public async Task<ActionResult<OrderStatusResponse>> Cancel(Guid id, CancelOrderRequest request, CancellationToken cancellationToken) =>
-        this.ToActionResult(
+        await DenyUnlessOwnerAsync(id, cancellationToken)
+        ?? this.ToActionResult(
             await dispatcher.SendAsync(new CancelOrderCommand(id, request.Reason), cancellationToken),
             status => Ok(ToResponse(id, status)));
 
+    private async Task<bool> CanAccessAsync(Guid customerId) =>
+        (await authorization.AuthorizeAsync(User, customerId, Policies.OrderOwner)).Succeeded;
+
+    /// <summary>
+    /// Antes de mudar o pedido, confere de quem ele é. Pedido inexistente segue adiante, e o caso de uso devolve o
+    /// 404; pedido de outro cliente devolve o mesmo 404, sem revelar que ele existe.
+    /// </summary>
+    private async Task<ActionResult?> DenyUnlessOwnerAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var order = await dispatcher.QueryAsync(new GetOrderByIdQuery(id), cancellationToken);
+        return order.IsSuccess && !await CanAccessAsync(order.Value.CustomerId)
+            ? this.ToActionResult(Result<OrderDto>.Failure(OrderErrors.OrderNotFound(id))).Result
+            : null;
+    }
+
     /// <summary>O id do cliente que está no token. A rota só aceita o perfil Customer, que sempre tem esse claim.</summary>
-    private Guid CustomerId() => Guid.Parse(User.FindFirst("sub")!.Value);
+    private Guid CustomerId() => User.SubjectId()!.Value;
 
     private static OrderStatusResponse ToResponse(Guid id, OrderStatus status) => new(id, status.ToString());
 }

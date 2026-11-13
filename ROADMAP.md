@@ -53,7 +53,7 @@
 - [x] JWT (emissão e validação), roles `Admin` e `Customer`
 
 ### Dia 12 — Autorização
-- [ ] Políticas: cliente só acessa os próprios pedidos; testes 401/403
+- [x] Políticas: cliente só acessa os próprios pedidos; testes 401/403
 
 ### Dia 13 — Outbox pattern
 - [ ] Eventos salvos na mesma transação do pedido

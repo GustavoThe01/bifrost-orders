@@ -125,5 +125,24 @@ internal sealed class OrderQueries(BifrostDbContext context) : IOrderQueries
 
     private sealed record ItemRow(string ProductId, string ProductName, long UnitPriceCents, long Quantity);
 
-    private sealed record SummaryRow(string Id, string CustomerId, string Status, string Currency, long TotalCents, long ItemCount);
+    /// <remarks>
+    /// Classe com propriedades, e não record posicional. TotalCents e ItemCount são agregações (SUM, COUNT), e o SQLite
+    /// só sabe o tipo delas quando há linhas: num resultado vazio, ele as declara como BLOB. O Dapper monta o construtor
+    /// de um record a partir desses tipos e falhava com uma página vazia (um cliente sem pedidos dava 500).
+    /// Com propriedades, a conversão é feita linha a linha, e uma página vazia não tem nada a converter.
+    /// </remarks>
+    private sealed class SummaryRow
+    {
+        public string Id { get; init; } = string.Empty;
+
+        public string CustomerId { get; init; } = string.Empty;
+
+        public string Status { get; init; } = string.Empty;
+
+        public string Currency { get; init; } = string.Empty;
+
+        public long TotalCents { get; init; }
+
+        public long ItemCount { get; init; }
+    }
 }
