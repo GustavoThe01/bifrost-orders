@@ -17,8 +17,8 @@ eventos confiáveis com Outbox, integrações resilientes e observabilidade com 
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-planejado-425CC7?style=flat-square&logo=opentelemetry&logoColor=white)
 ![Serilog](https://img.shields.io/badge/Serilog-logs_estruturados-1e3a8a?style=flat-square)
 ![Versão](https://img.shields.io/badge/versão-0.2.0-1e3a8a?style=flat-square)
-![Roadmap](https://img.shields.io/badge/roadmap-dia_11_de_20-1e3a8a?style=flat-square)
-![Testes](https://img.shields.io/badge/testes-126_passando-15803d?style=flat-square)
+![Roadmap](https://img.shields.io/badge/roadmap-dia_12_de_20-1e3a8a?style=flat-square)
+![Testes](https://img.shields.io/badge/testes-137_passando-15803d?style=flat-square)
 
 </div>
 
@@ -63,6 +63,7 @@ Nela eu junto o que pratico nos outros projetos: o modelo de dados do [Mercurium
 - [Dez pedidos, uma unidade](#-dez-pedidos-uma-unidade)
 - [Logs estruturados e correlation id](#-logs-estruturados-e-correlation-id)
 - [Autenticação com JWT](#-autenticação-com-jwt)
+- [Autorização: cada cliente com os seus pedidos](#-autorização-cada-cliente-com-os-seus-pedidos)
 - [Competências demonstradas](#-competências-demonstradas)
 - [Metodologias e decisões](#-metodologias-e-decisões)
 - [Roadmap](#️-roadmap)
@@ -122,11 +123,11 @@ Escolhi o nome porque um pedido também atravessa mundos: sai do **carrinho do c
 | `GET` | `/api/v1/products` | Catálogo, sem token (paginação no 06 e cache no 16) | ✅ 05 |
 | `POST` | `/api/v1/products` | Cadastra produto, só perfil `Admin` | ✅ 05 · perfil no 11 |
 | `POST` | `/api/v1/orders` | Cria pedido para o cliente dono do token, só perfil `Customer` | ✅ 05 · token no 11 |
-| `GET` | `/api/v1/orders` | Lista pedidos com filtro por cliente e status, paginada (Dapper) | ✅ 06 |
-| `GET` | `/api/v1/orders/{id}` | Detalhe do pedido | ✅ 05 |
-| `POST` | `/api/v1/orders/{id}/confirm` | Confirma o pedido e reserva o estoque | ✅ 05 · reserva no 09 |
+| `GET` | `/api/v1/orders` | Lista pedidos, paginada (Dapper); o cliente só vê os dele | ✅ 06 · política no 12 |
+| `GET` | `/api/v1/orders/{id}` | Detalhe do pedido (dono ou `Admin`) | ✅ 05 · política no 12 |
+| `POST` | `/api/v1/orders/{id}/confirm` | Confirma o pedido e reserva o estoque (dono ou `Admin`) | ✅ 05 · reserva no 09 |
 | `POST` | `/api/v1/orders/{id}/pay` | Paga via gateway externo | 14 |
-| `POST` | `/api/v1/orders/{id}/cancel` | Cancela o pedido e devolve o estoque reservado | ✅ 05 · devolução no 09 |
+| `POST` | `/api/v1/orders/{id}/cancel` | Cancela o pedido e devolve o estoque reservado (dono ou `Admin`) | ✅ 05 · devolução no 09 |
 | `GET` | `/api/v2/orders/{id}` | Nova versão do detalhe do pedido | 17 |
 
 Os casos de uso devolvem `Result<T>`, e a API traduz a categoria do erro em status HTTP num lugar só
@@ -389,8 +390,32 @@ quais contas existem.
 `Jwt__SigningKey` (Base64, pelo menos 32 bytes); sem ela, a API não sobe. Em desenvolvimento, se nenhuma chave foi
 configurada, a API gera uma nova a cada execução, e os tokens deixam de valer quando ela reinicia.
 
-> A regra "cliente só vê e mexe nos próprios pedidos" ainda não existe: hoje qualquer token válido consulta, confirma
-> ou cancela qualquer pedido. Ela é o Dia 12, com as políticas de autorização.
+---
+
+## 🛂 Autorização: cada cliente com os seus pedidos
+
+Autenticar diz quem é; autorizar diz o que essa pessoa pode fazer. Até o Dia 11, qualquer token válido consultava,
+confirmava ou cancelava qualquer pedido. Agora vale a política `order-owner`: o **administrador** vê e mexe em
+qualquer pedido, e o **cliente** só nos dele.
+
+A decisão depende do pedido, e não só do perfil, então ela não cabe num atributo `[Authorize]`, que só enxerga o
+token. É **autorização baseada no recurso**: o controller lê o pedido e pergunta ao `IAuthorizationService` se quem
+chamou pode acessar aquele cliente. A regra mora num lugar só, o [`OrderOwnerHandler`](src/Bifrost.Api/Auth/OrderAccess.cs).
+
+| Situação | Resposta |
+|---|---|
+| Sem token | `401` |
+| Cliente abre, confirma ou cancela um pedido de outro cliente | `404`, igual a um pedido que não existe |
+| Cliente lista pedidos sem filtro | `200`, só com os pedidos dele |
+| Cliente lista pedidos pedindo os de outro cliente (`?customerId=`) | `403` |
+| Administrador | `200` em qualquer pedido e qualquer filtro |
+| Token válido com um perfil desconhecido | Não é dono de nada: `404` nos pedidos, `403` no cadastro de produto, lista vazia |
+
+**Por que `404`, e não `403`, para o pedido de outro cliente.** Um `403` confirmaria que aquele id existe, e um
+cliente curioso poderia descobrir quais ids são pedidos de verdade. Com `404`, a resposta para o pedido da outra
+pessoa é igual à de um id inventado: mesmo status, mesmo `type` e mesmo `code` (`order.not_found`). Há um teste que
+compara as duas respostas. Já na listagem, o cliente pediu de forma explícita os pedidos de outro cliente, e aí o
+`403` não revela nada que ele já não tenha informado.
 
 ---
 
@@ -434,7 +459,7 @@ configurada, a API gera uma nova a cada execução, e os tokens deixam de valer 
 |---|---|---|:---:|---|
 | 1 | 01–05 | Solution, domínio, EF Core, CQRS, API | `v0.1.0` | 🟦🟦🟦🟦🟦 |
 | 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | 🟦🟦🟦🟦🟦 |
-| 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | 🟦⬜⬜⬜⬜ |
+| 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | 🟦🟦⬜⬜⬜ |
 | 4 | 16–20 | Cache, versionamento, OpenTelemetry, qualidade e entrega | `v1.0.0` | ⬜⬜⬜⬜⬜ |
 
 Detalhes no [ROADMAP.md](ROADMAP.md) · Mudanças no [CHANGELOG.md](CHANGELOG.md).
@@ -509,7 +534,7 @@ dotnet test
 |---|---|---|
 | `Bifrost.Domain.Tests` | Unitários do domínio + regra de camadas | ✅ 44 testes (Order, Product, reserva de estoque, value objects, camadas) |
 | `Bifrost.Application.Tests` | Pipeline completo e cada handler isolado, com NSubstitute | ✅ 31 testes |
-| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 51 testes de persistência, fluxo, leitura com Dapper, concorrência de estoque, API com `WebApplicationFactory`, correlation id nos logs e JWT (401, 403, token vencido, adulterado ou de outra chave) |
+| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 62 testes de persistência, fluxo, leitura com Dapper, concorrência de estoque, API com `WebApplicationFactory`, correlation id nos logs, JWT (401, 403, token vencido, adulterado ou de outra chave) e a política de dono do pedido |
 | `Bifrost.ArchitectureTests` | NetArchTest | ⏳ Dia 19 |
 | Carga | k6 no endpoint de criação de pedido | ⏳ Dia 19 |
 
@@ -555,7 +580,8 @@ Mantenho aqui um checklist vivo do que ainda vou incrementar neste repositório.
 - [x] Controllers, ProblemDetails e OpenAPI (Dia 05) → `v0.1.0`
 - [x] Leitura com Dapper, Result pattern, testes, concorrência e Serilog (Dias 06–10) → `v0.2.0`
 - [x] Autenticação com JWT e perfis `Admin` e `Customer` (Dia 11)
-- [ ] Políticas, Outbox, resiliência e Docker (Dias 12–15) → `v0.3.0`
+- [x] Política "cliente só acessa os próprios pedidos", com testes 401, 403 e 404 (Dia 12)
+- [ ] Outbox, resiliência e Docker (Dias 13–15) → `v0.3.0`
 - [ ] Cache, versionamento, OpenTelemetry, NetArchTest, k6 e entrega (Dias 16–20) → `v1.0.0`
 
 **README**

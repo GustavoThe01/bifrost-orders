@@ -6,6 +6,13 @@ e [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ## [Não lançado]
 
 ### Adicionado
+- Política de autorização `order-owner`, baseada no recurso: o administrador acessa qualquer pedido; o cliente, só os dele (`OrderOwnerHandler`).
+- Pedido de outro cliente responde `404`, igual a um pedido inexistente, para não revelar que o id existe.
+- Na listagem, o cliente vê só os próprios pedidos, e pedir os de outro cliente dá `403`.
+- 11 testes da política (137 no total): `401` em todas as rotas de pedido, `403`, `404` e o administrador vendo tudo.
+
+### Corrigido
+- A listagem de pedidos dava `500` quando a página vinha vazia (um cliente sem pedidos, num banco sem pedidos). Com nenhuma linha, o SQLite declara as colunas agregadas como BLOB, e o Dapper não conseguia montar o record posicional da linha. A linha virou uma classe com propriedades. O defeito existia desde o Dia 06 e apareceu nos testes novos da política.
 - Autenticação JWT (Microsoft.AspNetCore.Authentication.JwtBearer 10.0.14): assinatura HMAC-SHA256, emissor, público e validade conferidos em cada requisição.
 - `POST /api/v1/auth/token`, que troca e-mail e senha de uma conta de demonstração por um token de 60 minutos.
 - Perfis `Admin` e `Customer`: cadastrar produto exige `Admin`; criar pedido exige `Customer`; as demais rotas de pedido exigem um token válido.

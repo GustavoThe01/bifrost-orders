@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -48,7 +49,9 @@ public static class AuthenticationSetup
                 };
             });
 
-        services.AddAuthorization();
+        services.AddSingleton<IAuthorizationHandler, OrderOwnerHandler>();
+        services.AddAuthorizationBuilder()
+            .AddPolicy(Policies.OrderOwner, policy => policy.RequireAuthenticatedUser().AddRequirements(new OrderOwnerRequirement()));
         return services;
     }
 }
