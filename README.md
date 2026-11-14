@@ -17,8 +17,8 @@ eventos confiáveis com Outbox, integrações resilientes e observabilidade com 
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-planejado-425CC7?style=flat-square&logo=opentelemetry&logoColor=white)
 ![Serilog](https://img.shields.io/badge/Serilog-logs_estruturados-1e3a8a?style=flat-square)
 ![Versão](https://img.shields.io/badge/versão-0.2.0-1e3a8a?style=flat-square)
-![Roadmap](https://img.shields.io/badge/roadmap-dia_12_de_20-1e3a8a?style=flat-square)
-![Testes](https://img.shields.io/badge/testes-137_passando-15803d?style=flat-square)
+![Roadmap](https://img.shields.io/badge/roadmap-dia_13_de_20-1e3a8a?style=flat-square)
+![Testes](https://img.shields.io/badge/testes-143_passando-15803d?style=flat-square)
 
 </div>
 
@@ -266,7 +266,7 @@ stateDiagram-v2
 
 **O problema:** salvar o pedido e publicar o evento "pedido criado" são duas operações. Se o banco grava e a publicação falha, o resto do sistema nunca fica sabendo.
 
-**A solução que vou aplicar (Outbox pattern):** gravar o evento numa tabela `outbox_messages` **na mesma transação** do pedido. Um `BackgroundService` lê essa tabela, publica os eventos e os marca como processados.
+**A solução (Outbox pattern):** gravar o evento numa tabela `outbox_messages` **na mesma transação** do pedido. Um `BackgroundService` lê essa tabela, publica os eventos e os marca como processados.
 
 ```mermaid
 flowchart LR
@@ -275,6 +275,43 @@ flowchart LR
     W -->|"3 · publica"| P["Consumidores<br/>(e-mail, estoque, analytics)"]
     W -->|"4 · marca processado"| T
 ```
+
+**Como ficou (Dia 13).**
+
+| Peça | O que faz |
+|---|---|
+| [`OutboxInterceptor`](src/Bifrost.Infrastructure/Outbox/Outbox.cs) | Interceptor do EF Core: antes de cada `SaveChanges`, transforma os eventos dos agregados alterados em linhas de `outbox_messages`. Como entram no mesmo `SaveChanges`, entram na mesma transação |
+| `OutboxPayload` | Converte cada evento num JSON estável, com os ids como texto, sem expor os tipos internos do domínio |
+| `OutboxDispatcher` | Publica um lote de pendentes, em ordem de ocorrência, e marca cada uma como processada; uma falha registra a tentativa e o erro, sem travar as outras |
+| [`OutboxProcessor`](src/Bifrost.Api/Background/OutboxProcessor.cs) | `BackgroundService` que chama o dispatcher a cada 5 segundos (`Outbox:PollingInterval`) |
+| `IOutboxPublisher` | Para onde os eventos vão. Hoje, o log; trocar por um broker (RabbitMQ, Service Bus) é trocar essa implementação |
+
+Saída real da API: o cliente cria e confirma um pedido, e três segundos depois o processador publica os dois eventos:
+
+```text
+[13:40:38 INF] demo-outbox HTTP POST /api/v1/orders respondeu 201 em 609.2 ms
+[13:40:41 INF]  Evento OrderCreated publicado (01a1daee-b15e-...): {"orderId":"01a1daee-b0c0-...","customerId":"c0000000-0000-4000-8000-000000000001"}
+[13:40:41 INF]  Evento OrderConfirmed publicado (01a1daee-b36d-...): {"orderId":"01a1daee-b0c0-...","total":79.8,"currency":"BRL"}
+[13:40:41 INF]  Outbox: 2 mensagem(ns) publicada(s)
+```
+
+Decisões que tomei:
+
+- **Interceptor, e não código nos handlers.** Nenhum caso de uso precisa lembrar de gravar o evento: todo agregado
+  salvo pelo EF Core tem os eventos recolhidos. O domínio só ganhou a interface `IHasDomainEvents`, sem saber que o
+  Outbox existe.
+- **Pelo menos uma vez, e não exatamente uma vez.** Se a publicação der certo e a gravação do `ProcessedAt` falhar, o
+  evento sai de novo na rodada seguinte. Quem consome precisa tolerar repetição, usando o id da mensagem. Entrega
+  exatamente uma vez exigiria uma transação entre o banco e o broker, que não existe.
+- **Limite de tentativas.** Uma mensagem que falha 5 vezes (`Outbox:MaxAttempts`) para de ser tentada e fica no banco
+  com o último erro, para análise. Ela não bloqueia as outras.
+- **Uma instância só.** Com várias instâncias da API, dois processadores poderiam pegar a mesma mensagem. No
+  PostgreSQL, a saída seria travar o lote com `SELECT ... FOR UPDATE SKIP LOCKED`; com SQLite e uma instância, não há
+  disputa.
+
+Os testes provam a parte que importa: quando o `SaveChanges` falha (um SKU repetido no mesmo lote), nem o pedido nem
+o evento ficam gravados; uma operação recusada pelo domínio não gera evento; e o `BackgroundService` publica sozinho,
+com o host da API rodando de verdade.
 
 ---
 
@@ -459,7 +496,7 @@ compara as duas respostas. Já na listagem, o cliente pediu de forma explícita 
 |---|---|---|:---:|---|
 | 1 | 01–05 | Solution, domínio, EF Core, CQRS, API | `v0.1.0` | 🟦🟦🟦🟦🟦 |
 | 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | 🟦🟦🟦🟦🟦 |
-| 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | 🟦🟦⬜⬜⬜ |
+| 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | 🟦🟦🟦⬜⬜ |
 | 4 | 16–20 | Cache, versionamento, OpenTelemetry, qualidade e entrega | `v1.0.0` | ⬜⬜⬜⬜⬜ |
 
 Detalhes no [ROADMAP.md](ROADMAP.md) · Mudanças no [CHANGELOG.md](CHANGELOG.md).
@@ -534,7 +571,7 @@ dotnet test
 |---|---|---|
 | `Bifrost.Domain.Tests` | Unitários do domínio + regra de camadas | ✅ 44 testes (Order, Product, reserva de estoque, value objects, camadas) |
 | `Bifrost.Application.Tests` | Pipeline completo e cada handler isolado, com NSubstitute | ✅ 31 testes |
-| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 62 testes de persistência, fluxo, leitura com Dapper, concorrência de estoque, API com `WebApplicationFactory`, correlation id nos logs, JWT (401, 403, token vencido, adulterado ou de outra chave) e a política de dono do pedido |
+| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 68 testes de persistência, fluxo, leitura com Dapper, concorrência de estoque, API com `WebApplicationFactory`, correlation id nos logs, JWT (401, 403, token vencido, adulterado ou de outra chave), a política de dono do pedido e o Outbox (gravação atômica, publicação, tentativas e o `BackgroundService`) |
 | `Bifrost.ArchitectureTests` | NetArchTest | ⏳ Dia 19 |
 | Carga | k6 no endpoint de criação de pedido | ⏳ Dia 19 |
 
@@ -551,7 +588,7 @@ bifrost-orders/
 ├── src/
 │   ├── Bifrost.Domain/               # ✅ Order, Product, value objects, eventos
 │   ├── Bifrost.Application/          # ✅ dispatcher, pipeline, commands e queries
-│   ├── Bifrost.Infrastructure/       # ✅ EF Core (escrita), Dapper (leitura), migration, seed
+│   ├── Bifrost.Infrastructure/       # ✅ EF Core (escrita), Dapper (leitura), migrations, seed e Outbox
 │   └── Bifrost.Api/                  # ✅ controllers, Result → ProblemDetails, OpenAPI, Serilog, correlation id e JWT
 ├── tests/
 │   ├── Bifrost.Domain.Tests/         # ✅ testes do domínio e de arquitetura
@@ -581,7 +618,8 @@ Mantenho aqui um checklist vivo do que ainda vou incrementar neste repositório.
 - [x] Leitura com Dapper, Result pattern, testes, concorrência e Serilog (Dias 06–10) → `v0.2.0`
 - [x] Autenticação com JWT e perfis `Admin` e `Customer` (Dia 11)
 - [x] Política "cliente só acessa os próprios pedidos", com testes 401, 403 e 404 (Dia 12)
-- [ ] Outbox, resiliência e Docker (Dias 13–15) → `v0.3.0`
+- [x] Outbox: eventos na mesma transação do pedido e publicação em segundo plano (Dia 13)
+- [ ] Resiliência e Docker (Dias 14–15) → `v0.3.0`
 - [ ] Cache, versionamento, OpenTelemetry, NetArchTest, k6 e entrega (Dias 16–20) → `v1.0.0`
 
 **README**

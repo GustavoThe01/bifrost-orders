@@ -6,6 +6,14 @@ e [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ## [Não lançado]
 
 ### Adicionado
+- Outbox pattern: tabela `outbox_messages` (migration `AddOutbox`), com índice parcial das mensagens pendentes.
+- `OutboxInterceptor` do EF Core: os eventos de domínio viram mensagens no mesmo `SaveChanges`, e portanto na mesma transação, da mudança que os gerou.
+- `OutboxDispatcher` e o `BackgroundService` `OutboxProcessor`: publicação em ordem, a cada 5 segundos, com entrega pelo menos uma vez, registro de tentativas e erro, e limite de 5 tentativas.
+- `IOutboxPublisher` com uma implementação que registra no log; a seção `Outbox` do `appsettings.json` controla intervalo, lote e tentativas.
+- Interface `IHasDomainEvents` no domínio, implementada por `AggregateRoot`.
+- 6 testes novos (143 no total).
+
+### Adicionado
 - Política de autorização `order-owner`, baseada no recurso: o administrador acessa qualquer pedido; o cliente, só os dele (`OrderOwnerHandler`).
 - Pedido de outro cliente responde `404`, igual a um pedido inexistente, para não revelar que o id existe.
 - Na listagem, o cliente vê só os próprios pedidos, e pedir os de outro cliente dá `403`.

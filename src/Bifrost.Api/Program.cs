@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using Bifrost.Api.Auth;
+using Bifrost.Api.Background;
+using Bifrost.Infrastructure.Outbox;
 using Bifrost.Api.Errors;
 using Bifrost.Api.Observability;
 using Bifrost.Application;
@@ -51,6 +53,10 @@ if (builder.Environment.IsDevelopment())
 }
 
 builder.Services.AddBifrostAuthentication(builder.Configuration);
+// Outbox: os eventos gravados junto com o pedido são publicados em segundo plano.
+builder.Services.Configure<OutboxOptions>(builder.Configuration.GetSection(OutboxOptions.SectionName));
+builder.Services.AddHostedService<OutboxProcessor>();
+
 builder.Services.AddControllers();
 
 // 401 e 403 saem do middleware de autenticação sem corpo; o UseStatusCodePages os completa com ProblemDetails.
