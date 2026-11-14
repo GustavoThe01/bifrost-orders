@@ -151,4 +151,13 @@ public static class OrderErrors
     public static Error OrderNotFound(Guid id) => Error.NotFound("order.not_found", $"Pedido {id} não encontrado.");
 
     public static Error ProductNotFound(Guid id) => Error.NotFound("product.not_found", $"Produto {id} não encontrado.");
+
+    public static Error NotPayable(OrderStatus status) =>
+        Error.BusinessRule("order.not_payable", $"Só um pedido confirmado pode ser pago. Este está em {status}.");
+
+    public static Error PaymentDeclined(string reason) =>
+        Error.BusinessRule("payment.declined", $"O pagamento foi recusado: {reason}.");
+
+    public static Error PaymentUnavailable() =>
+        Error.Unavailable("payment.unavailable", "O gateway de pagamento não respondeu. Nada foi cobrado nem gravado; tente de novo em instantes.");
 }

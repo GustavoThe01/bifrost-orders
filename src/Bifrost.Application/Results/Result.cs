@@ -14,6 +14,9 @@ public enum ErrorType
 
     /// <summary>Regra de negócio violada no estado atual, como cancelar um pedido pago (422).</summary>
     BusinessRule = 4,
+
+    /// <summary>Um serviço externo de que a operação depende está fora do ar (503). Tentar mais tarde pode dar certo.</summary>
+    Unavailable = 5,
 }
 
 /// <summary>Campo que não passou na validação.</summary>
@@ -32,6 +35,8 @@ public sealed record Error(string Code, string Message, ErrorType Type)
     public static Error Conflict(string code, string message) => new(code, message, ErrorType.Conflict);
 
     public static Error BusinessRule(string code, string message) => new(code, message, ErrorType.BusinessRule);
+
+    public static Error Unavailable(string code, string message) => new(code, message, ErrorType.Unavailable);
 
     public static Error Validation(IReadOnlyList<FieldError> fields) =>
         new("validation", "Um ou mais campos não passaram na validação.", ErrorType.Validation) { Fields = fields };

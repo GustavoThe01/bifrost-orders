@@ -17,8 +17,8 @@ eventos confiáveis com Outbox, integrações resilientes e observabilidade com 
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-planejado-425CC7?style=flat-square&logo=opentelemetry&logoColor=white)
 ![Serilog](https://img.shields.io/badge/Serilog-logs_estruturados-1e3a8a?style=flat-square)
 ![Versão](https://img.shields.io/badge/versão-0.2.0-1e3a8a?style=flat-square)
-![Roadmap](https://img.shields.io/badge/roadmap-dia_13_de_20-1e3a8a?style=flat-square)
-![Testes](https://img.shields.io/badge/testes-143_passando-15803d?style=flat-square)
+![Roadmap](https://img.shields.io/badge/roadmap-dia_14_de_20-1e3a8a?style=flat-square)
+![Testes](https://img.shields.io/badge/testes-153_passando-15803d?style=flat-square)
 
 </div>
 
@@ -61,6 +61,7 @@ Nela eu junto o que pratico nos outros projetos: o modelo de dados do [Mercurium
 - [O ciclo de vida de um pedido](#-o-ciclo-de-vida-de-um-pedido)
 - [Eventos confiáveis com Outbox](#-eventos-confiáveis-com-outbox)
 - [Dez pedidos, uma unidade](#-dez-pedidos-uma-unidade)
+- [Pagamento resiliente](#-pagamento-resiliente)
 - [Logs estruturados e correlation id](#-logs-estruturados-e-correlation-id)
 - [Autenticação com JWT](#-autenticação-com-jwt)
 - [Autorização: cada cliente com os seus pedidos](#-autorização-cada-cliente-com-os-seus-pedidos)
@@ -126,7 +127,7 @@ Escolhi o nome porque um pedido também atravessa mundos: sai do **carrinho do c
 | `GET` | `/api/v1/orders` | Lista pedidos, paginada (Dapper); o cliente só vê os dele | ✅ 06 · política no 12 |
 | `GET` | `/api/v1/orders/{id}` | Detalhe do pedido (dono ou `Admin`) | ✅ 05 · política no 12 |
 | `POST` | `/api/v1/orders/{id}/confirm` | Confirma o pedido e reserva o estoque (dono ou `Admin`) | ✅ 05 · reserva no 09 |
-| `POST` | `/api/v1/orders/{id}/pay` | Paga via gateway externo | 14 |
+| `POST` | `/api/v1/orders/{id}/pay` | Paga pelo gateway de pagamento, com retry, timeout e circuit breaker (dono ou `Admin`) | ✅ 14 |
 | `POST` | `/api/v1/orders/{id}/cancel` | Cancela o pedido e devolve o estoque reservado (dono ou `Admin`) | ✅ 05 · devolução no 09 |
 | `GET` | `/api/v2/orders/{id}` | Nova versão do detalhe do pedido | 17 |
 
@@ -139,6 +140,7 @@ Os casos de uso devolvem `Result<T>`, e a API traduz a categoria do erro em stat
 | `NotFound` | 404 | pedido ou produto inexistente |
 | `Conflict` | 409 | SKU já cadastrado |
 | `BusinessRule` | 422 | confirmar um pedido cancelado |
+| `Unavailable` | 503 | gateway de pagamento fora do ar, depois das novas tentativas |
 
 Exemplo real, ao confirmar um pedido que já foi cancelado:
 
@@ -312,6 +314,61 @@ Decisões que tomei:
 Os testes provam a parte que importa: quando o `SaveChanges` falha (um SKU repetido no mesmo lote), nem o pedido nem
 o evento ficam gravados; uma operação recusada pelo domínio não gera evento; e o `BackgroundService` publica sozinho,
 com o host da API rodando de verdade.
+
+---
+
+## 💳 Pagamento resiliente
+
+`POST /api/v1/orders/{id}/pay` cobra o pedido num gateway de pagamento externo. Uma chamada pela rede pode demorar,
+falhar de vez em quando ou ficar fora do ar por minutos, e o pedido não pode ficar no meio do caminho nem ser cobrado
+duas vezes.
+
+O gateway é uma porta da aplicação ([`IPaymentGateway`](src/Bifrost.Application/Payments/Payments.cs)) e a
+implementação é um cliente HTTP tipado do `HttpClientFactory`
+([`HttpPaymentGateway`](src/Bifrost.Infrastructure/Payments/HttpPaymentGateway.cs)), com o pipeline padrão do
+Microsoft.Extensions.Http.Resilience 10.11.0:
+
+| Camada (de fora para dentro) | Configuração | Para quê |
+|---|---|---|
+| Tempo total | 10 s | A operação inteira, somando tentativas e esperas, tem um limite |
+| Nova tentativa | 3, com espera exponencial a partir de 200 ms e variação aleatória | Falhas passageiras (5xx, 408, 429, conexão recusada, timeout) |
+| Circuit breaker | abre com 50% de falhas em 30 s (mínimo de 5 chamadas) e fica aberto 15 s | Com o gateway fora do ar, para de insistir e responde na hora |
+| Tempo por tentativa | 2 s | Uma tentativa lenta não segura as outras |
+
+Todos os valores estão na seção `Payments` do `appsettings.json`.
+
+Decisões que tomei:
+
+- **Idempotência antes do retry.** Repetir um POST de cobrança só é seguro porque toda chamada leva o cabeçalho
+  `Idempotency-Key` (`order-{id}`). Se a primeira tentativa cobrou e só a resposta se perdeu, a segunda recebe a mesma
+  transação, e não uma segunda cobrança. Há um teste que conta as tentativas e confere que todas usaram a mesma chave.
+- **O status é conferido antes de cobrar.** Só pedido confirmado é pago; um pedido pendente ou cancelado recebe `422`
+  sem que o gateway seja chamado.
+- **Recusa não é falha.** O gateway respondendo `402` (cartão recusado) vira `422` (`payment.declined`) e não é
+  repetido. Repetir uma recusa só geraria mais recusas.
+- **Gateway fora do ar vira `503`, com nada gravado.** Depois das tentativas, ou na hora com o circuito aberto, a API
+  responde `503` (`payment.unavailable`) e o pedido continua confirmado, pronto para tentar de novo.
+- **Resposta estranha não vira `500`.** Uma página HTML ou um `404` de proxy no lugar do JSON do gateway vira `503`, e
+  não uma exceção.
+- **O pedido pago guarda a transação.** O id da transação vai para o pedido (`payment_reference`, migration
+  `AddPaymentReference`) e para o evento `OrderPaid` do Outbox.
+
+**Simulador.** Para rodar sem nenhum serviço externo, a API serve em desenvolvimento um gateway de mentira em
+`/simulador/pagamentos`, com o mesmo contrato: aprova (201), recusa acima de R$ 10.000 (402), respeita a chave de
+idempotência e pode falhar de propósito (`PaymentSimulator:FailureRate`). Rodei a API com 60% de falhas e paguei três
+pedidos. Os três foram pagos; trecho real do log do segundo, em que a primeira tentativa falhou:
+
+```text
+[14:59:00 INF] Simulador de pagamento: falha simulada (503) para 01a1db36-6e4a-7576-9b29-bbd3786ec6bf
+[14:59:00 WRN] pagamento-2 Execution attempt. Source: 'IPaymentGateway-standard//Standard-Retry', Result: '503', Handled: 'True', Attempt: '0'
+[14:59:00 WRN] pagamento-2 Resilience event occurred. EventName: 'OnRetry', Source: 'IPaymentGateway-standard//Standard-Retry', Result: '503'
+[14:59:00 INF] Simulador de pagamento: 39.9 BRL aprovado (pay_8660ff165207)
+[14:59:00 INF] pagamento-2 HTTP POST /api/v1/orders/01a1db36-6e4a-7576-9b29-bbd3786ec6bf/pay respondeu 200 em 164.6 ms
+```
+
+Os testes trocam só a rede: um servidor de pagamento falso responde o que cada teste mandar, e o pipeline de
+resiliência é o de verdade. Eles cobrem duas falhas seguidas de sucesso, gateway fora do ar (4 chamadas e `503`),
+recusa sem nova tentativa, tentativa lenta cortada pelo timeout, e o circuito aberto respondendo sem chamar o gateway.
 
 ---
 
@@ -496,7 +553,7 @@ compara as duas respostas. Já na listagem, o cliente pediu de forma explícita 
 |---|---|---|:---:|---|
 | 1 | 01–05 | Solution, domínio, EF Core, CQRS, API | `v0.1.0` | 🟦🟦🟦🟦🟦 |
 | 2 | 06–10 | Leitura com Dapper, Result pattern, testes, concorrência, logging | `v0.2.0` | 🟦🟦🟦🟦🟦 |
-| 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | 🟦🟦🟦⬜⬜ |
+| 3 | 11–15 | JWT, políticas, Outbox, resiliência, Docker | `v0.3.0` | 🟦🟦🟦🟦⬜ |
 | 4 | 16–20 | Cache, versionamento, OpenTelemetry, qualidade e entrega | `v1.0.0` | ⬜⬜⬜⬜⬜ |
 
 Detalhes no [ROADMAP.md](ROADMAP.md) · Mudanças no [CHANGELOG.md](CHANGELOG.md).
@@ -571,7 +628,7 @@ dotnet test
 |---|---|---|
 | `Bifrost.Domain.Tests` | Unitários do domínio + regra de camadas | ✅ 44 testes (Order, Product, reserva de estoque, value objects, camadas) |
 | `Bifrost.Application.Tests` | Pipeline completo e cada handler isolado, com NSubstitute | ✅ 31 testes |
-| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 68 testes de persistência, fluxo, leitura com Dapper, concorrência de estoque, API com `WebApplicationFactory`, correlation id nos logs, JWT (401, 403, token vencido, adulterado ou de outra chave), a política de dono do pedido e o Outbox (gravação atômica, publicação, tentativas e o `BackgroundService`) |
+| `Bifrost.IntegrationTests` | EF Core, Dapper e SQLite em memória, com a migration real | ✅ 78 testes de persistência, fluxo, leitura com Dapper, concorrência de estoque, API com `WebApplicationFactory`, correlation id nos logs, JWT (401, 403, token vencido, adulterado ou de outra chave), a política de dono do pedido o Outbox (gravação atômica, publicação, tentativas e o `BackgroundService`) e o pagamento resiliente (retry, timeout, circuit breaker e o simulador) |
 | `Bifrost.ArchitectureTests` | NetArchTest | ⏳ Dia 19 |
 | Carga | k6 no endpoint de criação de pedido | ⏳ Dia 19 |
 
@@ -619,7 +676,8 @@ Mantenho aqui um checklist vivo do que ainda vou incrementar neste repositório.
 - [x] Autenticação com JWT e perfis `Admin` e `Customer` (Dia 11)
 - [x] Política "cliente só acessa os próprios pedidos", com testes 401, 403 e 404 (Dia 12)
 - [x] Outbox: eventos na mesma transação do pedido e publicação em segundo plano (Dia 13)
-- [ ] Resiliência e Docker (Dias 14–15) → `v0.3.0`
+- [x] Pagamento com HttpClientFactory, retry, timeout e circuit breaker (Dia 14)
+- [ ] Docker (Dia 15) → `v0.3.0`
 - [ ] Cache, versionamento, OpenTelemetry, NetArchTest, k6 e entrega (Dias 16–20) → `v1.0.0`
 
 **README**

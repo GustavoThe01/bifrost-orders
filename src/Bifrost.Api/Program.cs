@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using Bifrost.Api.Auth;
 using Bifrost.Api.Background;
+using Bifrost.Api.Simulator;
+using Bifrost.Infrastructure.Payments;
 using Bifrost.Infrastructure.Outbox;
 using Bifrost.Api.Errors;
 using Bifrost.Api.Observability;
@@ -53,6 +55,9 @@ if (builder.Environment.IsDevelopment())
 }
 
 builder.Services.AddBifrostAuthentication(builder.Configuration);
+// Gateway de pagamento com HttpClientFactory e resiliência (retry, timeout, circuit breaker).
+builder.Services.AddPaymentGateway(builder.Configuration);
+
 // Outbox: os eventos gravados junto com o pedido são publicados em segundo plano.
 builder.Services.Configure<OutboxOptions>(builder.Configuration.GetSection(OutboxOptions.SectionName));
 builder.Services.AddHostedService<OutboxProcessor>();
@@ -107,6 +112,10 @@ if (app.Environment.IsDevelopment())
 
     app.MapOpenApi();
     app.MapScalarApiReference();
+
+    // Gateway de pagamento simulado, na própria API, para rodar sem nenhum serviço externo.
+    app.MapPaymentSimulator(builder.Configuration.GetSection(PaymentSimulatorOptions.SectionName).Get<PaymentSimulatorOptions>()
+        ?? new PaymentSimulatorOptions());
 }
 
 app.MapControllers();

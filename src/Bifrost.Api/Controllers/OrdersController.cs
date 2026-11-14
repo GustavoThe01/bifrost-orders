@@ -1,6 +1,7 @@
 using Bifrost.Api.Errors;
 using Bifrost.Application.Messaging;
 using Bifrost.Application.Orders;
+using Bifrost.Application.Payments;
 using Bifrost.Application.Results;
 using Bifrost.Domain.Orders;
 using Bifrost.Api.Auth;
@@ -109,6 +110,19 @@ public sealed class OrdersController(IDispatcher dispatcher, IAuthorizationServi
     public async Task<ActionResult<OrderStatusResponse>> Confirm(Guid id, CancellationToken cancellationToken) =>
         await DenyUnlessOwnerAsync(id, cancellationToken)
         ?? this.ToActionResult(await dispatcher.SendAsync(new ConfirmOrderCommand(id), cancellationToken), status => Ok(ToResponse(id, status)));
+
+    /// <summary>
+    /// Paga um pedido confirmado pelo gateway de pagamento. Recusa do gateway dá 422; gateway fora do ar, depois das
+    /// novas tentativas, dá 503 com nada cobrado nem gravado.
+    /// </summary>
+    [HttpPost("{id:guid}/pay")]
+    [ProducesResponseType<OrderStatusResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")]
+    public async Task<ActionResult<OrderStatusResponse>> Pay(Guid id, CancellationToken cancellationToken) =>
+        await DenyUnlessOwnerAsync(id, cancellationToken)
+        ?? this.ToActionResult(await dispatcher.SendAsync(new PayOrderCommand(id), cancellationToken), status => Ok(ToResponse(id, status)));
 
     /// <summary>Cancela um pedido que ainda não foi pago.</summary>
     [HttpPost("{id:guid}/cancel")]

@@ -52,6 +52,9 @@ public sealed class Order : AggregateRoot<OrderId>
 
     public string? CancellationReason { get; private set; }
 
+    /// <summary>Id da transação no gateway de pagamento. Preenchido quando o pedido é pago.</summary>
+    public string? PaymentReference { get; private set; }
+
     public IReadOnlyCollection<OrderItem> Items => _items.AsReadOnly();
 
     public Money Total => _items.Aggregate(Money.Zero(Currency), (total, item) => total + item.Total);
@@ -112,11 +115,17 @@ public sealed class Order : AggregateRoot<OrderId>
         Raise(new OrderConfirmed(Id, Total));
     }
 
-    public void MarkAsPaid()
+    public void MarkAsPaid(string paymentReference)
     {
+        if (string.IsNullOrWhiteSpace(paymentReference))
+        {
+            throw new DomainException("O pagamento precisa da referência da transação.");
+        }
+
         EnsureStatus(OrderStatus.Confirmed, "registrar o pagamento");
         Status = OrderStatus.Paid;
-        Raise(new OrderPaid(Id));
+        PaymentReference = paymentReference.Trim();
+        Raise(new OrderPaid(Id, PaymentReference));
     }
 
     public void Ship()

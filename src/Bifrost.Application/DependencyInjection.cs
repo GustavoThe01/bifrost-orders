@@ -1,6 +1,7 @@
 using Bifrost.Application.Catalog;
 using Bifrost.Application.Messaging;
 using Bifrost.Application.Orders;
+using Bifrost.Application.Payments;
 using Bifrost.Application.Results;
 using Bifrost.Domain.Orders;
 using FluentValidation;
@@ -24,6 +25,7 @@ public static class DependencyInjection
         services.AddCommand<CreateOrderCommand, Result<Guid>, CreateOrderHandler>();
         services.AddCommand<ConfirmOrderCommand, Result<OrderStatus>, ConfirmOrderHandler>();
         services.AddCommand<CancelOrderCommand, Result<OrderStatus>, CancelOrderHandler>();
+        services.AddCommand<PayOrderCommand, Result<OrderStatus>, PayOrderHandler>();
 
         services.AddQuery<GetOrderByIdQuery, Result<OrderDto>, GetOrderByIdHandler>();
         services.AddQuery<ListOrdersQuery, Result<PagedResult<OrderSummaryDto>>, ListOrdersHandler>();

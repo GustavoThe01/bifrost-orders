@@ -7,7 +7,7 @@ public sealed record OrderCreated(OrderId OrderId, CustomerId CustomerId) : IDom
 
 public sealed record OrderConfirmed(OrderId OrderId, Money Total) : IDomainEvent;
 
-public sealed record OrderPaid(OrderId OrderId) : IDomainEvent;
+public sealed record OrderPaid(OrderId OrderId, string PaymentReference) : IDomainEvent;
 
 public sealed record OrderShipped(OrderId OrderId) : IDomainEvent;
 

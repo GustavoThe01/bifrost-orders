@@ -92,6 +92,11 @@ namespace Bifrost.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("customer_id");
 
+                    b.Property<string>("PaymentReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("payment_reference");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)

@@ -7,7 +7,7 @@ namespace Bifrost.Api.Errors;
 
 /// <summary>
 /// Converte o <see cref="Result{T}"/> dos casos de uso em resposta HTTP. É o único lugar que conhece a tabela
-/// entre categoria de erro e status: 400, 404, 409 e 422.
+/// entre categoria de erro e status: 400, 404, 409, 422 e 503.
 /// </summary>
 internal static class ResultExtensions
 {
@@ -35,6 +35,7 @@ internal static class ResultExtensions
             ErrorType.NotFound => (StatusCodes.Status404NotFound, "not-found", "Recurso não encontrado"),
             ErrorType.Conflict => (StatusCodes.Status409Conflict, "conflict", "Conflito"),
             ErrorType.BusinessRule => (StatusCodes.Status422UnprocessableEntity, "business-rule", "Regra de negócio violada"),
+            ErrorType.Unavailable => (StatusCodes.Status503ServiceUnavailable, "unavailable", "Serviço indisponível"),
             _ => throw new ArgumentOutOfRangeException(nameof(error), error.Type, "Categoria de erro sem status HTTP."),
         };
 
