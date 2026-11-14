@@ -148,6 +148,43 @@ namespace Bifrost.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Bifrost.Infrastructure.Outbox.OutboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAt")
+                        .HasDatabaseName("ix_outbox_messages_pending")
+                        .HasFilter("ProcessedAt IS NULL");
+
+                    b.ToTable("outbox_messages", (string)null);
+                });
+
             modelBuilder.Entity("Bifrost.Domain.Orders.Order", b =>
                 {
                     b.OwnsOne("Bifrost.Domain.ValueObjects.Address", "ShippingAddress", b1 =>

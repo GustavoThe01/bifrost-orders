@@ -56,8 +56,8 @@
 - [x] Políticas: cliente só acessa os próprios pedidos; testes 401/403
 
 ### Dia 13 — Outbox pattern
-- [ ] Eventos salvos na mesma transação do pedido
-- [ ] `BackgroundService` publica e marca como processado
+- [x] Eventos salvos na mesma transação do pedido
+- [x] `BackgroundService` publica e marca como processado
 
 ### Dia 14 — Integração externa
 - [ ] Gateway de pagamento simulado via `HttpClientFactory`
