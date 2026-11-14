@@ -42,7 +42,7 @@ public static class OutboxPayload
         {
             OrderCreated e => new { orderId = e.OrderId.Value, customerId = e.CustomerId.Value },
             OrderConfirmed e => new { orderId = e.OrderId.Value, total = e.Total.Amount, currency = e.Total.Currency },
-            OrderPaid e => new { orderId = e.OrderId.Value },
+            OrderPaid e => new { orderId = e.OrderId.Value, paymentReference = e.PaymentReference },
             OrderShipped e => new { orderId = e.OrderId.Value },
             OrderDelivered e => new { orderId = e.OrderId.Value },
             OrderCancelled e => new { orderId = e.OrderId.Value, previousStatus = e.PreviousStatus.ToString(), reason = e.Reason },

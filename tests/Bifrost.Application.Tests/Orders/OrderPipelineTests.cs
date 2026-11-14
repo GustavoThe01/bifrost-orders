@@ -21,6 +21,7 @@ public sealed class OrderPipelineTests : IAsyncDisposable
     private readonly IProductRepository _products = Substitute.For<IProductRepository>();
     private readonly IOrderQueries _queries = Substitute.For<IOrderQueries>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly Bifrost.Application.Payments.IPaymentGateway _gateway = Substitute.For<Bifrost.Application.Payments.IPaymentGateway>();
     private readonly ServiceProvider _provider;
     private readonly AsyncServiceScope _scope;
     private readonly IDispatcher _dispatcher;
@@ -35,6 +36,7 @@ public sealed class OrderPipelineTests : IAsyncDisposable
         services.AddSingleton(_products);
         services.AddSingleton(_queries);
         services.AddSingleton(_unitOfWork);
+        services.AddSingleton(_gateway);
         _provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
         _scope = _provider.CreateAsyncScope();
         _dispatcher = _scope.ServiceProvider.GetRequiredService<IDispatcher>();
@@ -151,7 +153,7 @@ public sealed class OrderPipelineTests : IAsyncDisposable
     {
         var order = PendingOrder();
         order.Confirm();
-        order.MarkAsPaid();
+        order.MarkAsPaid("pay_teste");
 
         // O domínio lança DomainException; o pipeline devolve uma falha, sem exceção para quem chamou.
         var result = await _dispatcher.SendAsync(new CancelOrderCommand(order.Id.Value, "Desistência"), _token);

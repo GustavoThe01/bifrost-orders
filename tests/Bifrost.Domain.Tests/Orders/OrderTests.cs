@@ -114,7 +114,7 @@ public class OrderTests
     {
         var order = ConfirmedOrder();
 
-        order.MarkAsPaid();
+        order.MarkAsPaid("pay_teste");
         order.Ship();
         order.Deliver();
 
@@ -134,7 +134,7 @@ public class OrderTests
         var order = NewOrder();
         order.AddItem(Mug, "Caneca", Brl(30m), 1);
 
-        Assert.Throws<DomainException>(order.MarkAsPaid);
+        Assert.Throws<DomainException>(() => order.MarkAsPaid("pay_teste"));
         Assert.Throws<DomainException>(order.Ship);
         Assert.Throws<DomainException>(order.Deliver);
     }
@@ -156,7 +156,7 @@ public class OrderTests
     public void Cancel_AfterPayment_IsRejected()
     {
         var order = ConfirmedOrder();
-        order.MarkAsPaid();
+        order.MarkAsPaid("pay_teste");
 
         Assert.Throws<DomainException>(() => order.Cancel("Desistência"));
     }

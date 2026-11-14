@@ -6,6 +6,16 @@ e [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ## [Não lançado]
 
 ### Adicionado
+- `POST /api/v1/orders/{id}/pay`: paga um pedido confirmado pelo gateway de pagamento (porta `IPaymentGateway`).
+- `HttpPaymentGateway`, cliente tipado do `HttpClientFactory` com o pipeline padrão do Microsoft.Extensions.Http.Resilience 10.11.0: tempo total, 3 novas tentativas com espera exponencial e jitter, circuit breaker e tempo por tentativa, configuráveis na seção `Payments`.
+- Cabeçalho `Idempotency-Key` em toda cobrança, para as novas tentativas não cobrarem duas vezes.
+- Categoria de erro `Unavailable` (503) e os códigos `order.not_payable`, `payment.declined` e `payment.unavailable`.
+- Referência da transação no pedido (`payment_reference`, migration `AddPaymentReference`) e no evento `OrderPaid`.
+- Gateway de pagamento simulado em `/simulador/pagamentos`, só em desenvolvimento, com falhas configuráveis.
+- 10 testes novos (153 no total), com o pipeline de resiliência real e a rede trocada por um servidor falso.
+
+### Alterado
+- `Order.MarkAsPaid` passa a exigir a referência da transação.
 - Outbox pattern: tabela `outbox_messages` (migration `AddOutbox`), com índice parcial das mensagens pendentes.
 - `OutboxInterceptor` do EF Core: os eventos de domínio viram mensagens no mesmo `SaveChanges`, e portanto na mesma transação, da mudança que os gerou.
 - `OutboxDispatcher` e o `BackgroundService` `OutboxProcessor`: publicação em ordem, a cada 5 segundos, com entrega pelo menos uma vez, registro de tentativas e erro, e limite de 5 tentativas.

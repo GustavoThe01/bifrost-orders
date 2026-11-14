@@ -31,6 +31,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasMaxLength(20);
 
         builder.Property(o => o.CancellationReason).HasColumnName("cancellation_reason").HasMaxLength(500);
+        builder.Property(o => o.PaymentReference).HasColumnName("payment_reference").HasMaxLength(100);
 
         // Owned type: o endereço não tem identidade própria e fica nas colunas do próprio pedido.
         builder.OwnsOne(o => o.ShippingAddress, address =>

@@ -60,8 +60,8 @@
 - [x] `BackgroundService` publica e marca como processado
 
 ### Dia 14 — Integração externa
-- [ ] Gateway de pagamento simulado via `HttpClientFactory`
-- [ ] Retry, timeout e circuit breaker (Microsoft.Extensions.Http.Resilience)
+- [x] Gateway de pagamento simulado via `HttpClientFactory`
+- [x] Retry, timeout e circuit breaker (Microsoft.Extensions.Http.Resilience)
 
 ### Dia 15 — Docker
 - [ ] Dockerfile multi-stage, docker-compose, health checks (`/health/ready`, `/health/live`)

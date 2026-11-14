@@ -32,6 +32,7 @@ public sealed class StockConcurrencyTests : IAsyncLifetime
         services.AddLogging();
         services.AddApplication();
         services.AddInfrastructure(connectionString);
+        services.AddSingleton(NSubstitute.Substitute.For<Bifrost.Application.Payments.IPaymentGateway>()); // estes testes não pagam pedidos
         _provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
 
         await using var scope = _provider.CreateAsyncScope();
